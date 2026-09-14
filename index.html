@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fruit Fly Connectome Space Invaders | 果蠅大腦小蜜蜂訓練模擬器</title>
+    <meta name="description" content="Based on Janelia male-cns Drosophila connectome matrix simulation playing retro Space Invaders arcade game in HTML5 Canvas.">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <header class="header">
+        <h1>Drosophila Connectome Space Invaders</h1>
+        <p>果蠅神經連接組 (male-cns) 視網膜運動感測與 Space Invaders 基因演化訓練模擬器</p>
+    </header>
+
+    <main class="app-container">
+        <!-- Arcade Game Panel -->
+        <section class="panel-card game-container">
+            <div class="panel-title">
+                <span>👾</span> Space Invaders Arcade Game
+            </div>
+
+            <canvas id="gameCanvas" width="400" height="440"></canvas>
+
+            <div class="game-controls-bar">
+                <div class="switch-group">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="modeToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                    <span id="modeLabel" style="font-weight:700; font-size:0.9rem; color:var(--accent-cyan);">Fly Brain Auto-Pilot</span>
+                </div>
+
+                <div style="display:flex; gap:8px;">
+                    <button id="btnRestart" class="btn">Restart Game</button>
+                    <button id="btnTrain" class="btn btn-primary">Auto-Train Brain</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Connectome Brain & Training Dashboard -->
+        <section class="panel-card">
+            <div class="panel-title">
+                <span>🧠</span> Fruit Fly Neural Visual Field & Connectome Dashboard
+            </div>
+
+            <!-- Evolutionary Training Stats -->
+            <div class="training-stats">
+                <div class="stat-box">
+                    <div class="stat-val" id="statScore">0</div>
+                    <div class="stat-label">Score</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="statGen">1</div>
+                    <div class="stat-label">Generation</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="statGenome">1/10</div>
+                    <div class="stat-label">Genome</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="statBest">0</div>
+                    <div class="stat-label">Best Score</div>
+                </div>
+            </div>
+
+            <!-- Brain Visualizer Grid -->
+            <div class="brain-grid">
+                <div class="sub-card">
+                    <div class="sub-card-title">1. Retinal Grid (32x32 Ommatidia)</div>
+                    <canvas id="retinaCanvas" width="160" height="160"></canvas>
+                </div>
+
+                <div class="sub-card">
+                    <div class="sub-card-title">2. Motion Difference Heatmap</div>
+                    <canvas id="motionCanvas" width="160" height="160"></canvas>
+                </div>
+            </div>
+
+            <!-- Motor Control Signal Lights -->
+            <div class="sub-card" style="width:100%;">
+                <div class="sub-card-title">3. Connectome Motor Control Signals</div>
+                <div class="motor-signals">
+                    <div class="motor-badge">
+                        <div id="lightLeft" class="signal-light"></div>
+                        <span>MOVE LEFT</span>
+                    </div>
+                    <div class="motor-badge">
+                        <div id="lightShoot" class="signal-light"></div>
+                        <span>SHOOT</span>
+                    </div>
+                    <div class="motor-badge">
+                        <div id="lightRight" class="signal-light"></div>
+                        <span>MOVE RIGHT</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Neural Oscilloscope -->
+            <div class="sub-card" style="width:100%;">
+                <div class="sub-card-title">4. Membrane Potential V_net Oscilloscope</div>
+                <canvas id="oscilloscopeCanvas" width="380" height="80"></canvas>
+            </div>
+        </section>
+    </main>
+
+    <script src="connectome_brain.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

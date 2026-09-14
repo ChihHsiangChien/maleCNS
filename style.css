@@ -1,0 +1,312 @@
+/* Modern Dark Arcade & Connectome Visualizer Styles */
+
+:root {
+    --bg-primary: #0a0c10;
+    --bg-card: rgba(18, 22, 32, 0.85);
+    --border-color: rgba(64, 80, 110, 0.4);
+    --accent-cyan: #00f0ff;
+    --accent-magenta: #ff0055;
+    --accent-green: #00ff66;
+    --accent-yellow: #ffcc00;
+    --text-primary: #f0f4f8;
+    --text-secondary: #8a99ad;
+    --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-primary);
+    background-image: 
+        radial-gradient(circle at 15% 15%, rgba(0, 240, 255, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(255, 0, 85, 0.08) 0%, transparent 40%);
+    color: var(--text-primary);
+    font-family: var(--font-family);
+    min-height: 100vh;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.header h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    filter: drop-shadow(0 0 12px rgba(0, 240, 255, 0.4));
+}
+
+.header p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+/* App Main Layout */
+.app-container {
+    display: grid;
+    grid-template-columns: 500px 1fr;
+    gap: 24px;
+    max-width: 1400px;
+    width: 100%;
+}
+
+@media (max-width: 1100px) {
+    .app-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Cards & Panels */
+.panel-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 18px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.panel-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 8px;
+}
+
+/* Game Area */
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+#gameCanvas {
+    background: #000;
+    border: 2px solid var(--accent-cyan);
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+}
+
+.game-controls-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
+}
+
+.btn {
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    border: 1px solid var(--border-color);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #00b4d8, #0077b6);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #90e0ef, #00b4d8);
+}
+
+.btn-magenta {
+    background: linear-gradient(135deg, #ff0055, #b3003b);
+}
+
+/* Brain Visualizer Panels */
+.brain-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.sub-card {
+    background: rgba(10, 14, 22, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.sub-card-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    width: 100%;
+    text-align: left;
+}
+
+#retinaCanvas {
+    image-rendering: pixelated;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: #000;
+}
+
+#motionCanvas {
+    image-rendering: pixelated;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: #000;
+}
+
+#oscilloscopeCanvas {
+    background: #05070a;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    width: 100%;
+}
+
+/* Motor Signal Indicator Lights */
+.motor-signals {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+    margin-top: 6px;
+}
+
+.motor-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.signal-light {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #222;
+    border: 1px solid #444;
+    transition: all 0.1s ease;
+}
+
+.signal-light.active-left {
+    background: var(--accent-cyan);
+    box-shadow: 0 0 12px var(--accent-cyan);
+}
+
+.signal-light.active-right {
+    background: var(--accent-magenta);
+    box-shadow: 0 0 12px var(--accent-magenta);
+}
+
+.signal-light.active-shoot {
+    background: var(--accent-yellow);
+    box-shadow: 0 0 12px var(--accent-yellow);
+}
+
+/* Training Dashboard */
+.training-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.stat-box {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+}
+
+.stat-val {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--accent-cyan);
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+/* Toggle Switch */
+.switch-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #333;
+    transition: .3s;
+    border-radius: 24px;
+    border: 1px solid var(--border-color);
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px; width: 16px;
+    left: 3px; bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: var(--accent-cyan);
+}
+
+input:checked + .slider:before {
+    transform: translateX(20px);
+}
