@@ -19,11 +19,15 @@
 
 ---
 
-## 🎮 果蠅大腦小蜜蜂網頁訓練器 (Web Arcade Game)
+## 🎮 果蠅大腦小蜜蜂線上展示 (GitHub Pages Live Demo)
 
-本專案將果蠅大腦視網膜運動感測與神經迴路移植至 JavaScript，讓果蠅大腦以 $32 \times 32$ 視覺感受野直接遊玩 Space Invaders 街機遊戲。
+本專案將果蠅大腦視網膜運動感測與神經迴路移植至 JavaScript，使用者無需安裝任何環境即可透過瀏覽器線上體驗：
 
-### 啟動方式
+🌐 **線上遊戲展示網址**：**[https://chihhsiangchien.github.io/maleCNS/](https://chihhsiangchien.github.io/maleCNS/)**
+
+---
+
+### 本地啟動方式
 
 1. 執行本地伺服器：
    ```bash
