@@ -142,9 +142,80 @@ $$M_R = w_{LR} \cdot S_L + w_{RR} \cdot S_R$$
 
 ---
 
-## 🚀 8. 運算效能優勢總結
+## 🛠️ 8. 純手寫工程控制（Hand-crafted Engineering CV Pipeline）實作解密
+
+如果**完全不用果蠅連接組矩陣**，光靠工程師手寫演算法來讓 $32 \times 32$（1,024 像素）的影像控制 3D 自走車避障，手寫架構會變成什麼樣子？
+
+### 手寫工程學四階段控制流水線 (CV & Robotics Pipeline)
+
+```text
+ 32x32 像素影像 (1024)
+        │
+ 1. 影像切片與特徵提取 (ROI Splitting: Left, Right, Top, Bottom)
+        │
+ 2. 光流場與膨脹向量計算 (Optical Flow / Temporal Difference)
+        │
+ 3. PID 控制迴路 (Pitch / Yaw Output Error Feedback)
+        │
+ 4. 有限狀態機與例外規則 (FSM: Stuck Escapes, Corner Overrides)
+        │
+ 雙翅馬達推進與俯仰控制
+```
+
+#### 步驟 1：影像區域切片 (ROI Region Partitioning)
+手寫程式必須先手動將 1,024 個像素切割為 4 個感興趣區域（ROI）：
+```javascript
+let leftThreat = 0, rightThreat = 0, topThreat = 0, bottomThreat = 0;
+for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 32; x++) {
+        const val = pixel[y * 32 + x];
+        if (x < 16) leftThreat += val; else rightThreat += val;
+        if (y < 16) topThreat += val; else bottomThreat += val;
+    }
+}
+```
+
+#### 步驟 2：光流場與時間差分 (Optical Flow Estimation)
+單靠靜態亮度不夠（無法判斷障礙物是靠近還是遠離），手寫控制必須儲存前一影格 $I_{t-1}$，計算時間差分 $\Delta I = |I_t - I_{t-1}|$ 來估計膨脹威脅（Looming Risk）。
+
+#### 步驟 3：PID 閉迴路控制器 (PID Feedback Loops)
+計算偏航角誤差 $e_{\text{yaw}} = \text{rightThreat} - \text{leftThreat}$ 與俯仰角誤差 $e_{\text{pitch}} = \text{bottomThreat} - \text{topThreat}$，並手動寫 PID 算式：
+$$\text{Yaw Cmd} = K_p \cdot e_{\text{yaw}} + K_d \cdot \frac{de}{dt} + K_i \int e \, dt$$
+
+#### 步驟 4：有限狀態機 (FSM) 與例外補丁 `if-else`
+為了防止死角與懸空過街橋卡死，手寫工程必須加入大量例外規則：
+```javascript
+if (Math.abs(e_yaw) < 0.05 && centerThreat > 0.8) {
+    // 正前方撞牆，手動打斷對稱性
+    yawCmd = (Math.random() > 0.5 ? 1 : -1) * 2.5;
+} else if (topThreat > 0.8 && bottomThreat < 0.2) {
+    // 頭頂有懸空橋，強制壓頭俯衝
+    pitchCmd = -1.2;
+} else if (isStuckTimer > 0.5) {
+    // 卡在牆角，觸發後退倒車狀態機
+    triggerEmergencyReverseFSM();
+}
+```
+
+---
+
+### ⚖️ 手寫工程學 vs. 果蠅連接組矩陣 對比總結
+
+| 比較維度 | 傳統手寫工程學 (Hand-crafted CV + PID + FSM) | 果蠅神經連接組矩陣 ($W_{\text{connectome}}$) |
+| :--- | :--- | :--- |
+| **代碼行數** | **200 ~ 500+ 行**（需處理光流、ROI 切分、PID、狀態機） | **5 行**（單次矩陣點積相乘） |
+| **參數調校** | **極其痛苦**（需手動調校 $K_p, K_i, K_d$、各區閾值、狀態切換時間） | **零調校**（突觸權重已被自然界演化預先微調最佳化） |
+| **邊界死角處理** | 需手動補寫大量 `if-else` 例外處理（如過街橋、角落夾縫） | **自然擴散**（ Center-Surround 神經抑制自動推導出適應解） |
+| **計算負擔** | 高（需循環遍歷 1,024 像素數次 + 歷史影格緩衝） | **極低**（直接進行一次硬體加速的向量-矩陣點積） |
+
+**結論**：如果不用果蠅矩陣，手寫工程法**絕對會複雜得多**，且需要寫大量的例外判斷與 PID 調校；而果蠅神經矩陣最精妙之處，就是將「特徵提取、空間權重、運動趨向」**全部封裝進單單一個 $1,024 \times 32$ 的矩陣點積中**！
+
+---
+
+## 🚀 9. 運算效能優勢總結
 
 - **極致輕量**：$1,024 \times 32$ 矩陣僅包含 $32,768$ 個浮點數參數，記憶體佔用小於 **250 KB**。
 - **毫秒級推論**：單次矩陣點積耗時 $< 0.1\text{ ms}$，整體迴路可在微控制器與瀏覽器端達到 **>1,000 FPS** 的超高頻推論速度。
+
 
 
