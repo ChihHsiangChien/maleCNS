@@ -1,7 +1,8 @@
 /**
- * Connectome Rover Neural Brain Engine
+ * Connectome Rover Neural Brain Engine (Full 3D Volumetric Avoidance)
  * Reads real neuPrint CSV data (lc4_connectome_matrix.csv) and calculates
- * Left/Right Eye sensory inputs to Left/Right Wing differential motor outputs.
+ * Left/Right Eye & Top/Bottom Elevation sensory inputs to
+ * Left/Right Wing differential motor outputs + Vertical Pitch Control.
  */
 
 class RoverConnectomeBrain {
@@ -12,6 +13,8 @@ class RoverConnectomeBrain {
         // Eye Visual Stimulus Arrays (0.0 = clear, 1.0 = immediate obstacle threat)
         this.leftEyeSensors = new Float32Array(numRaysPerEye);
         this.rightEyeSensors = new Float32Array(numRaysPerEye);
+        this.topEyeSensors = new Float32Array(numRaysPerEye);
+        this.bottomEyeSensors = new Float32Array(numRaysPerEye);
 
         // Connectome Matrix Stats
         this.isLoaded = false;
@@ -20,7 +23,6 @@ class RoverConnectomeBrain {
         this.gabaSynapses = 0;
 
         // Weights matrix aggregated across 32 retinotopic columns
-        // columnWeights[col] = { ach: number, gaba: number, totalWeight: number }
         this.columnWeights = new Array(this.totalRays).fill(null).map(() => ({
             ach: 0.5,
             gaba: 0.5,
@@ -30,12 +32,16 @@ class RoverConnectomeBrain {
         // Internal Membrane Potentials
         this.v_left_eye = 0.0;
         this.v_right_eye = 0.0;
-        this.v_wing_left = 1.0;  // Normal cruising power
-        this.v_wing_right = 1.0; // Normal cruising power
+        this.v_top_eye = 0.0;
+        this.v_bottom_eye = 0.0;
+        this.v_wing_left = 1.0;   // Normal cruising power
+        this.v_wing_right = 1.0;  // Normal cruising power
+        this.v_pitch_drive = 0.0; // Vertical pitch drive (-1.0 dive to +1.0 climb)
         
         // Dynamic Parameters
         this.baseCruisingPower = 1.0;
         this.avoidanceGain = 2.2;
+        this.pitchGain = 1.8;
         this.leakFactor = 0.7;
 
         // Load real database asynchronously
@@ -70,7 +76,6 @@ class RoverConnectomeBrain {
         let achCount = 0;
         let gabaCount = 0;
 
-        // Columns: source_id,source_type,target_id,target_type,weight,nt,spatial_x,spatial_y
         for (let i = 1; i < lines.length; i++) {
             const line = lines[i].trim();
             if (!line) continue;
@@ -79,7 +84,7 @@ class RoverConnectomeBrain {
 
             const weight = parseFloat(cols[4]) || 1.0;
             const nt = (cols[5] || '').toLowerCase();
-            const spatialX = parseInt(cols[6], 10); // 0 to 31 mapping to visual columns
+            const spatialX = parseInt(cols[6], 10);
 
             const colIdx = Math.min(this.totalRays - 1, Math.max(0, isNaN(spatialX) ? 0 : spatialX % this.totalRays));
 
@@ -99,7 +104,6 @@ class RoverConnectomeBrain {
         this.achSynapses = achCount;
         this.gabaSynapses = gabaCount;
 
-        // Normalize weights per column
         this.columnWeights.forEach(cw => {
             const sum = cw.ach + cw.gaba;
             if (sum > 0) {
@@ -127,51 +131,68 @@ class RoverConnectomeBrain {
     }
 
     /**
-     * Updates neural calculation loop.
-     * @param {Float32Array} leftRays Ray distances/threats (0.0 clear to 1.0 threat)
-     * @param {Float32Array} rightRays Ray distances/threats (0.0 clear to 1.0 threat)
+     * Updates neural calculation loop in 3D.
+     * @param {Float32Array} leftRays Left Eye Horizon Rays
+     * @param {Float32Array} rightRays Right Eye Horizon Rays
+     * @param {Float32Array} topRays Overhead Top Elevation Rays (+30°)
+     * @param {Float32Array} bottomRays Downward Bottom Elevation Rays (-30°)
      */
-    update(leftRays, rightRays) {
+    update(leftRays, rightRays, topRays, bottomRays) {
         let leftThreatDrive = 0.0;
         let rightThreatDrive = 0.0;
+        let topThreatDrive = 0.0;
+        let bottomThreatDrive = 0.0;
 
-        // 1. Process Left Eye Inputs (Columns 0..15)
+        // 1. Process Horizon Eye Inputs (Left 0..15, Right 16..31)
         for (let i = 0; i < this.numRaysPerEye; i++) {
-            const threat = leftRays[i] || 0.0;
-            this.leftEyeSensors[i] = threat;
-            const cw = this.columnWeights[i];
-            // Excitatory LC4 looming threat drive weighted by connectome ACh
-            leftThreatDrive += threat * (cw.achRatio || 0.6) * cw.totalWeight * 0.2;
+            const threatL = leftRays[i] || 0.0;
+            this.leftEyeSensors[i] = threatL;
+            const cwL = this.columnWeights[i];
+            leftThreatDrive += threatL * (cwL.achRatio || 0.6) * cwL.totalWeight * 0.2;
+
+            const threatR = rightRays[i] || 0.0;
+            this.rightEyeSensors[i] = threatR;
+            const cwR = this.columnWeights[i + this.numRaysPerEye];
+            rightThreatDrive += threatR * (cwR.achRatio || 0.6) * cwR.totalWeight * 0.2;
         }
 
-        // 2. Process Right Eye Inputs (Columns 16..31)
-        for (let i = 0; i < this.numRaysPerEye; i++) {
-            const threat = rightRays[i] || 0.0;
-            this.rightEyeSensors[i] = threat;
-            const cw = this.columnWeights[i + this.numRaysPerEye];
-            // Excitatory LC4 looming threat drive weighted by connectome ACh
-            rightThreatDrive += threat * (cw.achRatio || 0.6) * cw.totalWeight * 0.2;
+        // 2. Process Vertical Elevation Rays (Top +30° vs Bottom -30°)
+        if (topRays && bottomRays) {
+            for (let i = 0; i < this.numRaysPerEye; i++) {
+                const threatT = topRays[i] || 0.0;
+                this.topEyeSensors[i] = threatT;
+                topThreatDrive += threatT * 0.25;
+
+                const threatB = bottomRays[i] || 0.0;
+                this.bottomEyeSensors[i] = threatB;
+                bottomThreatDrive += threatB * 0.25;
+            }
         }
 
         // Leaky integration of eye potentials
         this.v_left_eye = (this.leakFactor * this.v_left_eye) + leftThreatDrive;
         this.v_right_eye = (this.leakFactor * this.v_right_eye) + rightThreatDrive;
+        this.v_top_eye = (this.leakFactor * this.v_top_eye) + topThreatDrive;
+        this.v_bottom_eye = (this.leakFactor * this.v_bottom_eye) + bottomThreatDrive;
 
-        // 3. Connectome Reflex Routing:
-        // Left Eye Threat -> Excites Right Wing (flaps harder) & Suppresses Left Wing -> Steers RIGHT away from threat!
-        // Right Eye Threat -> Excites Left Wing (flaps harder) & Suppresses Right Wing -> Steers LEFT away from threat!
+        // 3. Horizontal Yaw Reflex Routing
         let targetWingLeft = this.baseCruisingPower + (this.v_right_eye * this.avoidanceGain) - (this.v_left_eye * 0.4);
         let targetWingRight = this.baseCruisingPower + (this.v_left_eye * this.avoidanceGain) - (this.v_right_eye * 0.4);
 
         // Head-on Wall Symmetry Breaking (LC4 / Giant Fiber Escape Saccade)
-        // When both eyes sense high threat ahead simultaneously, trigger sharp evasive turn instead of sliding
         if (this.v_left_eye > 0.28 && this.v_right_eye > 0.28) {
             if (this.v_left_eye >= this.v_right_eye) {
-                targetWingRight += 2.2; // Drive Right Wing harder -> sharp turn LEFT
+                targetWingRight += 2.2; // Sharp turn LEFT
             } else {
-                targetWingLeft += 2.2;  // Drive Left Wing harder -> sharp turn RIGHT
+                targetWingLeft += 2.2;  // Sharp turn RIGHT
             }
         }
+
+        // 4. Vertical Pitch Reflex Routing
+        // Threat below -> Pitch UP (+Climb) to fly over low obstacles!
+        // Threat above (overhead bridge/ceiling) -> Pitch DOWN (-Dive) to dive under gaps!
+        const targetPitch = (this.v_bottom_eye * this.pitchGain) - (this.v_top_eye * (this.pitchGain * 1.2));
+        this.v_pitch_drive = THREE.MathUtils.lerp(this.v_pitch_drive, Math.max(-1.5, Math.min(1.5, targetPitch)), 0.3);
 
         // Smooth motor output transition
         this.v_wing_left = THREE.MathUtils.lerp(this.v_wing_left, Math.max(0.2, Math.min(3.2, targetWingLeft)), 0.25);
@@ -180,8 +201,11 @@ class RoverConnectomeBrain {
         return {
             wingPowerLeft: this.v_wing_left,
             wingPowerRight: this.v_wing_right,
+            pitchDrive: this.v_pitch_drive,
             v_left_eye: this.v_left_eye,
             v_right_eye: this.v_right_eye,
+            v_top_eye: this.v_top_eye,
+            v_bottom_eye: this.v_bottom_eye,
             stats: {
                 synapses: this.synapseCount,
                 ach: this.achSynapses,

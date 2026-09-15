@@ -67,7 +67,8 @@
 
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <select id="mazeSelect" class="btn" style="background:rgba(8, 12, 22, 0.9); color:var(--accent-cyan); border-color:var(--accent-cyan); padding:7px 12px; font-weight:700; cursor:pointer;">
-                        <option value="maze" selected>🏰 Planar Maze (平面迷宮)</option>
+                        <option value="maze3d" selected>🏰 3D Volumetric Labyrinth (3D 立體迷宮)</option>
+                        <option value="maze">🏰 2D Planar Maze (平面迷宮)</option>
                         <option value="corridor">🛣️ Dual Corridor</option>
                         <option value="scattered">🔮 Scattered Arena</option>
                     </select>
@@ -83,7 +84,7 @@
             <!-- Overview Telemetry Stats -->
             <section class="panel-card">
                 <div class="panel-title">
-                    <span>📊</span> Flight Telemetry & Performance
+                    <span>📊</span> 3D Volumetric Flight Telemetry
                 </div>
                 <div class="stats-grid">
                     <div class="stat-box">
@@ -91,16 +92,16 @@
                         <div class="stat-label">Speed (m/s)</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-val" id="statDist">0m</div>
-                        <div class="stat-label">Flight Distance</div>
+                        <div class="stat-val" id="statAlt" style="color:var(--accent-gold);">2.5m</div>
+                        <div class="stat-label">Altitude (Y)</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-val" id="statPitch" style="color:var(--accent-cyan);">0.0°</div>
+                        <div class="stat-label">Pitch Angle</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-val" id="statDodge">0</div>
                         <div class="stat-label">Dodges</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-val" id="statSynapses">22,875</div>
-                        <div class="stat-label">Active Synapses</div>
                     </div>
                 </div>
             </section>

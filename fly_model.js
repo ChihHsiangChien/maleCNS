@@ -182,7 +182,7 @@ class FruitFlyModel {
      * @param {number} pLeft Left wing power (0.0 to 1.5+)
      * @param {number} pRight Right wing power (0.0 to 1.5+)
      */
-    updateWings(delta, pLeft = 1.0, pRight = 1.0) {
+    updateWings(delta, pLeft = 1.0, pRight = 1.0, pitchAngle = 0.0) {
         this.wingFlapTime += delta * 45; // Base high-frequency flap
 
         // Base frequency scaled by power
@@ -205,12 +205,12 @@ class FruitFlyModel {
         this.rightWingPivot.rotation.z = rightAngleZ;
         this.rightWingPivot.rotation.y = rightAngleY;
 
-        // Body dynamic roll and pitch tilting from wing power imbalance
+        // Body dynamic roll and pitch tilting
         const powerDiff = pRight - pLeft; // Positive -> turn left, roll left
         this.group.rotation.z = THREE.MathUtils.lerp(this.group.rotation.z, powerDiff * 0.35, 0.1);
         
-        const totalPower = (pLeft + pRight) * 0.5;
-        this.group.rotation.x = THREE.MathUtils.lerp(this.group.rotation.x, (totalPower - 1.0) * -0.15, 0.1);
+        // Pitch tilting incorporates flight pitch angle
+        this.group.rotation.x = THREE.MathUtils.lerp(this.group.rotation.x, -pitchAngle * 0.8, 0.15);
     }
 
     getLeftEyeWorldPosition() {
