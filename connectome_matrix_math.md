@@ -85,17 +85,40 @@ $$v_j = \sum_{i=0}^{1023} (p_i \times W_{i, j})$$
 
 ---
 
-## 🪰 5. 馬達與雙翅推進控制轉譯
+## 🪰 5. 馬達與雙翅推進控制轉譯（從 $1 \times 32$ 向量到 3D 位移）
 
-拿到這 32 個欄位的電位向量後，系統進行左右眼分區加總：
-- **左眼總威脅**：$V_{\text{left\_eye}} = \sum_{j=0}^{15} v_j$
-- **右眼總威脅**：$V_{\text{right\_eye}} = \sum_{j=16}^{31} v_j$
+當矩陣點積完成後，會得到一個長度為 32 的神經膜電位向量 $V_{\text{column}} = [v_0, v_1, \dots, v_{31}]$。本專案透過以下 4 個步驟將其轉譯為 3D 飛行動作：
 
-最後透過對側興奮與側向抑制反射迴路輸出給雙翅：
+### 步驟 1：左右眼與垂直威脅電位累加
+在 `rover_brain.js` 中：
+- **左眼視野總威脅**：$V_{\text{left\_eye}} = \sum_{j=0}^{15} v_j$
+- **右眼視野總威脅**：$V_{\text{right\_eye}} = \sum_{j=16}^{31} v_j$
+- **頭頂與下方威脅**：由仰角 Rays 算出 $V_{\text{top\_eye}}$ 與 $V_{\text{bottom\_eye}}$。
+
+### 步驟 2：神經反射迴路輸出雙翅推進力 (Wing Power)
+透過「對側興奮、同側抑制」交叉迴路計算左右雙翅拍打力量：
 - **左翅推進力**：
-  $$V_{\text{wing\_L}} = \text{基礎巡航力} + (V_{\text{right\_eye}} \times \text{避障增益}) - (V_{\text{left\_eye}} \times \text{側向抑制})$$
+  $$W_{\text{left}} = \text{BasePower} + (V_{\text{right\_eye}} \cdot K_{\text{avoid}}) - (V_{\text{left\_eye}} \cdot K_{\text{inhibit}})$$
 - **右翅推進力**：
-  $$V_{\text{wing\_R}} = \text{基礎巡航力} + (V_{\text{left\_eye}} \times \text{避障增益}) - (V_{\text{right\_eye}} \times \text{側向抑制})$$
+  $$W_{\text{right}} = \text{BasePower} + (V_{\text{left\_eye}} \cdot K_{\text{avoid}}) - (V_{\text{right\_eye}} \cdot K_{\text{inhibit}})$$
+  *(例如：若左眼看到障礙物 $V_{\text{left}} \uparrow$，則右翅力量 $W_{\text{right}}$ 暴增，強迫果蠅向右轉離障礙物)*
+
+### 步驟 3：俯仰角控制驅動 (Pitch Drive)
+- **俯仰驅動角**：
+  $$\theta_{\text{target\_pitch}} = (V_{\text{bottom\_eye}} \cdot K_{\text{pitch}}) - (V_{\text{top\_eye}} \cdot K_{\text{dive}})$$
+
+### 步驟 4：在 3D 物理引擎中算出一秒後的 3D 位移 (`fly_rover.js`)
+1. **前進總推力與偏航轉向角速度**：
+   $$v_{\text{thrust}} = \frac{W_{\text{left}} + W_{\text{right}}}{2} \times 12.0 \text{ m/s}, \quad \omega_{\text{yaw}} = (W_{\text{right}} - W_{\text{left}}) \times 2.8 \text{ rad/s}$$
+2. **偏航角與俯仰角更新**：
+   $$\text{flyYaw} \mathrel{+}= \omega_{\text{yaw}} \cdot \Delta t, \quad \text{flyPitch} \mathrel{+}= \theta_{\text{target\_pitch}} \cdot \Delta t$$
+3. **分解為 3D 空間座標位移 $(\Delta X, \Delta Y, \Delta Z)$**：
+   - 水平平面速度：$v_{xz} = v_{\text{thrust}} \cdot \cos(\text{flyPitch})$
+   - 垂直高度速度：$v_y = v_{\text{thrust}} \cdot \sin(\text{flyPitch})$
+   - **最終位置更新**：
+     $$\Delta X = \sin(\text{flyYaw}) \cdot v_{xz} \cdot \Delta t$$
+     $$\Delta Z = \cos(\text{flyYaw}) \cdot v_{xz} \cdot \Delta t$$
+     $$\Delta Y = v_y \cdot \Delta t$$
 
 ---
 
