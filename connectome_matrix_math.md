@@ -50,14 +50,23 @@ $$(1 \times 1,024) \times (1,024 \times 32) = (1 \times 32)$$
 
 根據矩陣乘法規則：若要將形狀 $(1 \times 1,024)$ 的輸入向量轉換為 $(1 \times 32)$ 的輸出向量，轉接的轉換矩陣維度**必須為 $(1,024 \times 32)$**。
 
-### 矩陣內部數值的生物學意義：
+### 🔍 數據轉換原理：從 22,875 條原始突觸到 $1,024 \times 32$ 矩陣
 
-矩陣中第 $i$ 行、第 $j$ 列的數值 $W_{i, j}$ 代表：
-> **「第 $i$ 個視覺小眼（$0 \dots 1023$），對第 $j$ 個方位神經欄位（$0 \dots 31$）的突觸連線總權重」**
+neuPrint 資料庫中包含 **22,875 條獨立突觸連線**（代表每一對神經元之間的 ID、權重與遞質種類）。這龐大的圖譜數據透過以下三個步驟聚合（Spatial Aggregation / Binning）為 $1,024 \times 32$ 矩陣：
 
-本專案解析了 neuPrint **22,875 條真實突觸**，並填入 $W_{i, j}$ 中：
-- **乙醯膽鹼 (ACh)** 興奮性突觸 $\rightarrow$ 貢獻 **正值 $+1.0 \times \text{Weight}$**。
-- **GABA / Glutamate** 抑制性突觸 $\rightarrow$ 貢獻 **負值 $-1.0 \times \text{Weight}$**。
+1. **輸入端映射（按小眼像素分組, $0 \dots 1023$）**：
+   - 將果蠅視覺區域劃分為 $32 \times 32 = 1,024$ 個小眼（Ommatidia）解剖座標網格。
+   - 每一條原始突觸的來源神經元（如 Tm1, Tm2, Mi1），依其在視網膜解剖圖上的空間 $(X, Y)$ 座標歸類至第 $i$ 個像素（$i \in 0 \dots 1023$）。
+
+2. **輸出端映射（按方位欄位分組, $0 \dots 31$）**：
+   - 果蠅視葉中的 LC4 視神經在解剖學上排列為 32 個水平方位欄位（Azimuth Columns）。
+   - 目標 LC4 神經元依其覆蓋的角度，歸類至第 $j$ 個方位欄位（$j \in 0 \dots 31$）。
+
+3. **突觸權重空間累加（Matrix Cell Weight $W_{i, j}$）**：
+   - 矩陣中每一個格子 $W_{i, j}$ 的數值，即為**「所有從第 $i$ 號像素連到第 $j$ 號方位欄位的原始突觸權重總和」**：
+     $$W_{i, j} = \sum_{\text{synapses } i \rightarrow j} (\text{極性標籤} \times \text{Synapse Weight})$$
+     - **乙醯膽鹼 (ACh)** 興奮性突觸 $\rightarrow$ 貢獻 **正值 $+1.0 \times \text{Weight}$**。
+     - **GABA / Glutamate** 抑制性突觸 $\rightarrow$ 貢獻 **負值 $-1.0 \times \text{Weight}$**。
 
 ---
 
