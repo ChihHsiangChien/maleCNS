@@ -929,16 +929,42 @@ class FlyRoverApp {
             btnSpawn.addEventListener('click', () => {
                 const forwardDir = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw);
                 const spawnPos = this.flyPos.clone().add(forwardDir.multiplyScalar(10.0));
-                this.createObstacle({
-                    type: Math.random() > 0.5 ? 'floating' : 'gate',
-                    x: spawnPos.x,
-                    z: spawnPos.z,
-                    y: 6.0 + Math.random() * 6.0,
-                    radius: 2.0,
-                    w: 16.0,
-                    h: 4.0,
-                    color: 0xff0055
-                });
+                
+                // Spawn obstacle at the fruit fly's current altitude to ensure collision/dodging
+                const randType = Math.random();
+                if (randType < 0.4) {
+                    // Full height pillar blocking all altitudes
+                    this.createObstacle({
+                        type: 'pillar',
+                        x: spawnPos.x,
+                        z: spawnPos.z,
+                        radius: 2.2,
+                        h: 20.0,
+                        y: 10.0,
+                        color: 0xff0055
+                    });
+                } else if (randType < 0.7) {
+                    // Ground sphere at current fly level
+                    this.createObstacle({
+                        type: 'sphere',
+                        x: spawnPos.x,
+                        z: spawnPos.z,
+                        y: Math.max(2.2, this.flyPos.y),
+                        radius: 2.5,
+                        color: 0xff0055
+                    });
+                } else {
+                    // Suspended gate
+                    this.createObstacle({
+                        type: 'gate',
+                        x: spawnPos.x,
+                        z: spawnPos.z,
+                        y: Math.max(5.0, this.flyPos.y + 2.0),
+                        w: 16.0,
+                        h: 4.0,
+                        color: 0xff0055
+                    });
+                }
             });
         }
 
@@ -962,12 +988,14 @@ class FlyRoverApp {
             const intersects = clickRay.intersectObject(this.groundMesh);
             if (intersects.length > 0) {
                 const pt = intersects[0].point;
+                // Spawn a full height pillar or ground sphere at clicked location
                 this.createObstacle({
-                    type: 'floating',
+                    type: Math.random() > 0.5 ? 'pillar' : 'sphere',
                     x: pt.x,
                     z: pt.z,
-                    y: 8.0,
+                    y: 2.5,
                     radius: 2.2,
+                    h: 20.0,
                     color: 0xffb703
                 });
             }
