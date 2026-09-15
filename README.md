@@ -122,7 +122,7 @@ maleCNS/
 
 ## 📐 神經矩陣規模與運算維度 (Matrix Scale & Computational Dimensions)
 
-本專案採用的果蠅神經連接組矩陣在數據規模、視覺輸入與計算維度上的詳細規格如下：
+本專案採用的果蠅神經連接組矩陣在數據規模、視覺輸入與計算維度上的詳細規格如下（完整數學推導請參閱 **[connectome_matrix_math.md](connectome_matrix_math.md)**）：
 
 ### 1. 📊 neuPrint 突觸數據庫規模 (`lc4_connectome_matrix.csv`)
 - **突觸連接總行數（稀疏矩陣邊數）**：**22,875 條** 真實突觸連接。
