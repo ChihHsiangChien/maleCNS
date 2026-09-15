@@ -99,7 +99,29 @@ $$v_j = \sum_{i=0}^{1023} (p_i \times W_{i, j})$$
 
 ---
 
-## 🚀 6. 運算效能優勢總結
+## 🛸 6. 3D 立體飛行對矩陣與神經迴路的影響 (3D Flight Expansion)
+
+當模擬從 **2D 平面避障** 升級為 **3D 立體飛行（包含爬升 Pitch Up 與俯衝 Pitch Dive）** 時，**$1,024 \times 32$ 連接組矩陣本身完全不需要重新修改或打散**。
+
+### 為什麼 3D 移動不會破壞原本的矩陣？
+
+1. **神經硬體不變性（Hardware Invariance）**：
+   $W_{\text{connectome}}$ 代表果蠅視葉（Lobula）真實解剖學上的神經突觸物理連線。這套生物硬體線路不論果蠅是平地爬行還是空中 3D 飛行都是固定的。
+
+2. **多重仰角視野通道（Multi-Elevation Channels）**：
+   在 3D 空間中，果蠅透過不同仰角視網膜小眼接收輸入：
+   - **水平視角 ($0^\circ$)** $\rightarrow$ 輸入矩陣計算得到 $V_{\text{left\_eye}}$ 與 $V_{\text{right\_eye}}$ $\rightarrow$ 控制 **偏航轉向 (Yaw Angular Velocity $\omega$)**。
+   - **仰角視角 ($+30^\circ \text{ Top vs } -30^\circ \text{ Bottom}$)** $\rightarrow$ 計算得到 $V_{\text{top\_eye}}$ 與 $V_{\text{bottom\_eye}}$ $\rightarrow$ 控制 **俯仰角 (Pitch Drive $\theta_{\text{pitch}}$)**。
+
+3. **俯仰電位推導公式**：
+   $$\text{Pitch Drive } \theta_{\text{pitch}} = (V_{\text{bottom\_eye}} \cdot K_{\text{pitch}}) - (V_{\text{top\_eye}} \cdot K_{\text{pitch\_dive}})$$
+   - **下方有障礙物** ($V_{\text{bottom\_eye}} \uparrow$) $\rightarrow$ 觸發向上爬升（飛躍低牆）。
+   - **上方有障礙物/天花板** ($V_{\text{top\_eye}} \uparrow$) $\rightarrow$ 觸發向下俯衝（鑽過過街橋下方空隙）。
+
+---
+
+## 🚀 7. 運算效能優勢總結
 
 - **極致輕量**：$1,024 \times 32$ 矩陣僅包含 $32,768$ 個浮點數參數，記憶體佔用小於 **250 KB**。
 - **毫秒級推論**：單次矩陣點積耗時 $< 0.1\text{ ms}$，整體迴路可在微控制器與瀏覽器端達到 **>1,000 FPS** 的超高頻推論速度。
+
