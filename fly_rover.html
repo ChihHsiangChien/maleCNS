@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fruit Fly 3D Autonomous Rover | 果蠅神經自走車避障模擬器</title>
+    <meta name="description" content="3D Virtual Fruit Fly Autonomous Vehicle controlled by Janelia male-cns real connectome matrix (lc4_connectome_matrix.csv) in Three.js. Left/Right Eye inputs drive Left/Right Wing differential flapping motor control.">
+    <link rel="stylesheet" href="fly_rover.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Three.js & OrbitControls via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <!-- Header & App Navigation -->
+    <header class="header">
+        <div class="header-brand">
+            <h1>Drosophila 3D Connectome Rover</h1>
+            <p>果蠅真實神經連接組 (`lc4_connectome_matrix.csv`) 驅動之 3D 雙翅推進虛擬自走車避障系統</p>
+        </div>
+
+        <nav class="nav-links">
+            <a href="index.html" class="nav-btn">
+                <span>👾</span> 2D Space Invaders
+            </a>
+            <a href="fly_rover.html" class="nav-btn active">
+                <span>🪰</span> 3D Fruit Fly Rover
+            </a>
+        </nav>
+    </header>
+
+    <!-- Main Grid Layout -->
+    <main class="app-container">
+
+        <!-- 3D Scene Viewport -->
+        <section class="viewport-card" id="canvasContainer">
+            <canvas id="canvas3d"></canvas>
+
+            <!-- Top HUD Overlay -->
+            <div class="hud-overlay">
+                <div class="hud-badge">
+                    <div class="hud-pulse"></div>
+                    <span>CONNECTOME ACTIVE: LC4 / ACh-GABA CIRCUIT</span>
+                </div>
+
+                <!-- Camera View Switcher -->
+                <div class="camera-bar">
+                    <button class="cam-btn active" data-cam="follow">Follow Cam</button>
+                    <button class="cam-btn" data-cam="cockpit">Eye Cam</button>
+                    <button class="cam-btn" data-cam="top">Top View</button>
+                    <button class="cam-btn" data-cam="orbit">Free Orbit</button>
+                </div>
+            </div>
+
+            <!-- Bottom Viewport Controls Bar -->
+            <div class="viewport-controls-bar">
+                <div class="toggle-group">
+                    <label class="switch">
+                        <input type="checkbox" id="autoPilotToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                    <span id="modeLabel" style="font-weight:700; font-size:0.88rem; color:var(--accent-cyan);">
+                        Connectome Auto-Pilot (Drosophila Matrix)
+                    </span>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <select id="mazeSelect" class="btn" style="background:rgba(8, 12, 22, 0.9); color:var(--accent-cyan); border-color:var(--accent-cyan); padding:7px 12px; font-weight:700; cursor:pointer;">
+                        <option value="maze" selected>🏰 Planar Maze (平面迷宮)</option>
+                        <option value="corridor">🛣️ Dual Corridor</option>
+                        <option value="scattered">🔮 Scattered Arena</option>
+                    </select>
+                    <button id="btnSpawnObstacle" class="btn btn-primary">➕ Spawn Obstacle</button>
+                    <button id="btnResetFly" class="btn">🔄 Reset Fly</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Telemetry & Neural Dashboard Sidebar -->
+        <aside class="dashboard-sidebar">
+
+            <!-- Overview Telemetry Stats -->
+            <section class="panel-card">
+                <div class="panel-title">
+                    <span>📊</span> Flight Telemetry & Performance
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-val" id="statSpeed">0.0</div>
+                        <div class="stat-label">Speed (m/s)</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-val" id="statDist">0m</div>
+                        <div class="stat-label">Flight Distance</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-val" id="statDodge">0</div>
+                        <div class="stat-label">Dodges</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-val" id="statSynapses">22,875</div>
+                        <div class="stat-label">Active Synapses</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Eye Sensors Array (Left Sector vs Right Sector) -->
+            <section class="panel-card">
+                <div class="panel-title">
+                    <span>👀</span> Compound Eye Retinal Visual Sectors
+                </div>
+                <div class="eye-sensors-container">
+                    <!-- Left Eye Bars -->
+                    <div class="eye-box">
+                        <div class="eye-label left">
+                            <span>LEFT EYE</span>
+                            <span>(-90° ~ -5°)</span>
+                        </div>
+                        <div class="sensor-bars" id="leftEyeBars">
+                            <!-- 16 Bars generated via JS -->
+                            <script>
+                                for(let i=0; i<16; i++) {
+                                    document.write(`<div class="s-bar" id="sbarL_${i}"></div>`);
+                                }
+                            </script>
+                        </div>
+                    </div>
+
+                    <!-- Right Eye Bars -->
+                    <div class="eye-box">
+                        <div class="eye-label right">
+                            <span>RIGHT EYE</span>
+                            <span>(+5° ~ +90°)</span>
+                        </div>
+                        <div class="sensor-bars" id="rightEyeBars">
+                            <!-- 16 Bars generated via JS -->
+                            <script>
+                                for(let i=0; i<16; i++) {
+                                    document.write(`<div class="s-bar" id="sbarR_${i}"></div>`);
+                                }
+                            </script>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Wing Motor Power Gauges -->
+            <section class="panel-card">
+                <div class="panel-title">
+                    <span>🪰</span> Left Wing vs Right Wing Differential Drive
+                </div>
+                <div class="wing-gauges">
+                    <div class="gauge-row">
+                        <span class="gauge-name" style="color:var(--accent-magenta);">LEFT WING</span>
+                        <div class="gauge-track">
+                            <div class="gauge-fill fill-left" id="wingFillL"></div>
+                        </div>
+                        <span class="gauge-num" id="wingNumL">1.00</span>
+                    </div>
+
+                    <div class="gauge-row">
+                        <span class="gauge-name" style="color:var(--accent-cyan);">RIGHT WING</span>
+                        <div class="gauge-track">
+                            <div class="gauge-fill fill-right" id="wingFillR"></div>
+                        </div>
+                        <span class="gauge-num" id="wingNumR">1.00</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Connectome Real Matrix Information -->
+            <section class="panel-card">
+                <div class="panel-title">
+                    <span>🧠</span> neuprint `male-cns:v1.0` Connectome Data
+                </div>
+                <div class="connectome-info-list">
+                    <div class="info-item">
+                        <span>Database File:</span>
+                        <span class="info-val">lc4_connectome_matrix.csv</span>
+                    </div>
+                    <div class="info-item">
+                        <span>Total Loaded Connections:</span>
+                        <span class="info-val">22,875 Synapses</span>
+                    </div>
+                    <div class="info-item">
+                        <span>ACh Excitatory (+1.0):</span>
+                        <span class="info-val" style="color:var(--accent-cyan);">62.1% (14,200)</span>
+                    </div>
+                    <div class="info-item">
+                        <span>GABA Inhibitory (-1.0):</span>
+                        <span class="info-val" style="color:var(--accent-magenta);">37.9% (8,675)</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Differential Wing Oscilloscope -->
+            <section class="panel-card">
+                <div class="panel-title">
+                    <span>📈</span> Wing Motor Waveform Oscilloscope (V_left vs V_right)
+                </div>
+                <canvas id="oscilloscopeCanvas" width="340" height="70"></canvas>
+            </section>
+
+        </aside>
+    </main>
+
+    <!-- Application Logic Scripts -->
+    <script src="fly_model.js"></script>
+    <script src="rover_brain.js"></script>
+    <script src="fly_rover.js"></script>
+</body>
+</html>
