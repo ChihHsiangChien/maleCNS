@@ -456,7 +456,7 @@ class FlyRoverApp {
             this.flyYaw = THREE.MathUtils.lerp(this.flyYaw, inwardAngle, 0.4);
         }
 
-        // 2. Strict Inner Maze Wall AABB Collision Containment
+        // 2. Strict Inner Maze Wall AABB Collision Containment & Physical Turning Torque
         this.obstacles.forEach(obs => {
             if (obs.type === 'wall' && obs.mesh && obs.mesh.geometry.parameters) {
                 const wHalf = (obs.mesh.geometry.parameters.width || 2) * 0.5 + 1.2;
@@ -467,11 +467,20 @@ class FlyRoverApp {
                 if (Math.abs(dx) < wHalf && Math.abs(dz) < dHalf) {
                     const overlapX = wHalf - Math.abs(dx);
                     const overlapZ = dHalf - Math.abs(dz);
+                    let wallNormalX = 0;
+                    let wallNormalZ = 0;
+
                     if (overlapX < overlapZ) {
+                        wallNormalX = dx > 0 ? 1 : -1;
                         this.flyPos.x += dx > 0 ? overlapX : -overlapX;
                     } else {
+                        wallNormalZ = dz > 0 ? 1 : -1;
                         this.flyPos.z += dz > 0 ? overlapZ : -overlapZ;
                     }
+
+                    // Physically turn fly heading angle away from wall normal vector
+                    const targetTurnAngle = Math.atan2(wallNormalZ, wallNormalX);
+                    this.flyYaw = THREE.MathUtils.lerp(this.flyYaw, targetTurnAngle, 0.45);
                 }
             }
         });

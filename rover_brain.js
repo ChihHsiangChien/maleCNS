@@ -160,12 +160,22 @@ class RoverConnectomeBrain {
         // 3. Connectome Reflex Routing:
         // Left Eye Threat -> Excites Right Wing (flaps harder) & Suppresses Left Wing -> Steers RIGHT away from threat!
         // Right Eye Threat -> Excites Left Wing (flaps harder) & Suppresses Right Wing -> Steers LEFT away from threat!
-        const targetWingLeft = this.baseCruisingPower + (this.v_right_eye * this.avoidanceGain) - (this.v_left_eye * 0.4);
-        const targetWingRight = this.baseCruisingPower + (this.v_left_eye * this.avoidanceGain) - (this.v_right_eye * 0.4);
+        let targetWingLeft = this.baseCruisingPower + (this.v_right_eye * this.avoidanceGain) - (this.v_left_eye * 0.4);
+        let targetWingRight = this.baseCruisingPower + (this.v_left_eye * this.avoidanceGain) - (this.v_right_eye * 0.4);
+
+        // Head-on Wall Symmetry Breaking (LC4 / Giant Fiber Escape Saccade)
+        // When both eyes sense high threat ahead simultaneously, trigger sharp evasive turn instead of sliding
+        if (this.v_left_eye > 0.28 && this.v_right_eye > 0.28) {
+            if (this.v_left_eye >= this.v_right_eye) {
+                targetWingRight += 2.2; // Drive Right Wing harder -> sharp turn LEFT
+            } else {
+                targetWingLeft += 2.2;  // Drive Left Wing harder -> sharp turn RIGHT
+            }
+        }
 
         // Smooth motor output transition
-        this.v_wing_left = THREE.MathUtils.lerp(this.v_wing_left, Math.max(0.2, Math.min(3.0, targetWingLeft)), 0.2);
-        this.v_wing_right = THREE.MathUtils.lerp(this.v_wing_right, Math.max(0.2, Math.min(3.0, targetWingRight)), 0.2);
+        this.v_wing_left = THREE.MathUtils.lerp(this.v_wing_left, Math.max(0.2, Math.min(3.2, targetWingLeft)), 0.25);
+        this.v_wing_right = THREE.MathUtils.lerp(this.v_wing_right, Math.max(0.2, Math.min(3.2, targetWingRight)), 0.25);
 
         return {
             wingPowerLeft: this.v_wing_left,
