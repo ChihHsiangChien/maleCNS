@@ -1,6 +1,6 @@
 /**
  * 3D Fruit Fly Autonomous Rover Simulation Controller (Three.js)
- * Full 3D Volumetric Avoidance: Yaw turning, Pitch climbing/diving, Invisible Ceiling & Overpass Gaps
+ * Full 3D Volumetric Avoidance & LC10 STMD Food Pursuit & Foraging Engine
  */
 
 class FlyRoverApp {
@@ -31,8 +31,11 @@ class FlyRoverApp {
         // Lighting
         this._setupLighting();
 
-        // Environment & Obstacles
+        // Environment & Obstacles & Food Targets
         this.obstacles = [];
+        this.foodTargets = [];
+        this.particleSplashes = [];
+        this.foodScore = 0;
         this._buildArena();
 
         // Fruit Fly Agent & Brain
@@ -50,17 +53,26 @@ class FlyRoverApp {
         this.flightDistance = 0.0;
         this.lastPos = this.flyPos.clone();
 
-        // Spawn default maze layout
+        // Spawn default maze layout & food targets
         this._spawnDefaultObstacles('maze3d');
+        this._spawnDefaultFoodTargets();
 
-        // Raycasting & Sensors (Horizon + Overhead + Downward)
+        // Raycasting & Sensors (LC4 Obstacles + LC10 Food Targets)
         this.raycaster = new THREE.Raycaster();
         this.numRays = 16;
-        this.maxRayDist = 18.0;
+        this.maxRayDist = 22.0;
+
+        // LC4 Threat Signals
         this.leftRaySignals = new Float32Array(this.numRays);
         this.rightRaySignals = new Float32Array(this.numRays);
         this.topRaySignals = new Float32Array(this.numRays);
         this.botRaySignals = new Float32Array(this.numRays);
+
+        // LC10 Food Attraction Signals
+        this.leftFoodSignals = new Float32Array(this.numRays);
+        this.rightFoodSignals = new Float32Array(this.numRays);
+        this.topFoodSignals = new Float32Array(this.numRays);
+        this.botFoodSignals = new Float32Array(this.numRays);
 
         // Visual Ray Line Helpers
         this._setupRayLineHelpers();
@@ -106,6 +118,10 @@ class FlyRoverApp {
         const cyanLight = new THREE.PointLight(0x00f2fe, 2, 50);
         cyanLight.position.set(15, 10, 15);
         this.scene.add(cyanLight);
+
+        const greenLight = new THREE.PointLight(0x70e000, 2, 60);
+        greenLight.position.set(0, 12, 0);
+        this.scene.add(greenLight);
     }
 
     _createHighContrastFloorTexture() {
@@ -114,7 +130,6 @@ class FlyRoverApp {
         canvas.height = 512;
         const ctx = canvas.getContext('2d');
 
-        // High Contrast Cyber Checkerboard Tiles
         const tileSize = 64;
         for (let y = 0; y < 512; y += tileSize) {
             for (let x = 0; x < 512; x += tileSize) {
@@ -122,12 +137,10 @@ class FlyRoverApp {
                 ctx.fillStyle = isEven ? '#0b1324' : '#14223d';
                 ctx.fillRect(x, y, tileSize, tileSize);
 
-                // High Contrast Neon Grid Border
                 ctx.strokeStyle = isEven ? '#00f2fe' : '#f72585';
                 ctx.lineWidth = 4;
                 ctx.strokeRect(x, y, tileSize, tileSize);
 
-                // Glowing Corner Dots
                 ctx.fillStyle = isEven ? '#ff0055' : '#ffb703';
                 ctx.beginPath();
                 ctx.arc(x, y, 5, 0, Math.PI * 2);
@@ -145,7 +158,7 @@ class FlyRoverApp {
     _buildArena() {
         const arenaRadius = 45;
 
-        // Ground Plane with High Contrast Texture
+        // Ground Plane
         const floorTexture = this._createHighContrastFloorTexture();
         const planeGeo = new THREE.PlaneGeometry(arenaRadius * 2, arenaRadius * 2);
         const planeMat = new THREE.MeshStandardMaterial({
@@ -183,7 +196,7 @@ class FlyRoverApp {
         ceilingMesh.rotation.x = Math.PI / 2;
         this.scene.add(ceilingMesh);
 
-        // Ground Shadow Ring & Heading Arrow attached beneath the Fruit Fly
+        // Ground Shadow Ring & Heading Arrow
         this.groundShadowRing = new THREE.Group();
         const shadowRingGeo = new THREE.RingGeometry(1.2, 1.5, 32);
         const shadowRingMat = new THREE.MeshBasicMaterial({ color: 0x00f2fe, side: THREE.DoubleSide });
@@ -191,7 +204,6 @@ class FlyRoverApp {
         shadowRing.rotation.x = Math.PI / 2;
         this.groundShadowRing.add(shadowRing);
 
-        // Arrow indicator pointing forward on ground
         const arrowShape = new THREE.Shape();
         arrowShape.moveTo(0, 2.2);
         arrowShape.lineTo(-0.6, 1.2);
@@ -206,7 +218,7 @@ class FlyRoverApp {
         this.groundShadowRing.position.y = 0.08;
         this.scene.add(this.groundShadowRing);
 
-        // 3D Outer Perimeter Wall Enclosure (Height = ceilingY)
+        // 3D Outer Perimeter Wall Enclosure
         const wallHeight = this.ceilingY;
         const wallRadius = arenaRadius - 1.0;
         const cylGeo = new THREE.CylinderGeometry(wallRadius, wallRadius, wallHeight, 64, 1, true);
@@ -248,44 +260,35 @@ class FlyRoverApp {
         this._clearObstacles();
 
         if (type === 'maze3d') {
-            // 🏰 3D Volumetric Labyrinth Layout (多層3D立體迷宮與過街橋天花板)
             const maze3dDefs = [
-                // Seamless Outer Perimeter Boundary Walls
                 { type: 'wall', x: 0, z: -35, w: 74, h: 20, d: 4, y: 10, color: 0x00f2fe },
                 { type: 'wall', x: 0, z: 35, w: 74, h: 20, d: 4, y: 10, color: 0x00f2fe },
                 { type: 'wall', x: -35, z: 0, w: 4, h: 20, d: 74, y: 10, color: 0x00f2fe },
                 { type: 'wall', x: 35, z: 0, w: 4, h: 20, d: 74, y: 10, color: 0x00f2fe },
 
-                // Corner Smooth Junction Pillars
                 { type: 'pillar', x: -33, z: -33, radius: 3.0, h: 20, y: 10, color: 0x00f2fe },
                 { type: 'pillar', x: 33, z: -33, radius: 3.0, h: 20, y: 10, color: 0x00f2fe },
                 { type: 'pillar', x: -33, z: 33, radius: 3.0, h: 20, y: 10, color: 0x00f2fe },
                 { type: 'pillar', x: 33, z: 33, radius: 3.0, h: 20, y: 10, color: 0x00f2fe },
 
-                // 1. Low Barriers (Height = 4.5m) -> Fly can climb over (Y > 4.5)
                 { type: 'low_wall', x: -16, z: -18, w: 26, h: 4.5, d: 3, y: 2.25, color: 0x00f2fe },
                 { type: 'low_wall', x: 16, z: 18, w: 26, h: 4.5, d: 3, y: 2.25, color: 0x00f2fe },
 
-                // 2. Suspended Overpass Gates (Height = 5.0m suspended at Y = 12m) -> Fly can dive underneath (Y < 9.5)
                 { type: 'gate', x: 0, z: -15, w: 28, h: 5.0, d: 4, y: 12.0, color: 0xf72585 },
                 { type: 'gate', x: 0, z: 15, w: 28, h: 5.0, d: 4, y: 12.0, color: 0xf72585 },
 
-                // 3. Full Height Center Divider Passage Walls with Openings
                 { type: 'wall', x: -15, z: 0, w: 18, h: 20, d: 3, y: 10, color: 0x4cc9f0 },
                 { type: 'wall', x: 15, z: 0, w: 18, h: 20, d: 3, y: 10, color: 0x4cc9f0 },
 
-                // 4. Floating Spheres in Mid-Air Space (Y = 7.0m to 14.0m)
                 { type: 'floating', x: -10, z: 12, radius: 2.8, y: 8.5, color: 0xffb703 },
                 { type: 'floating', x: 10, z: -12, radius: 2.8, y: 11.0, color: 0xffb703 },
                 { type: 'floating', x: 0, z: 0, radius: 3.2, y: 9.0, color: 0xff0055 },
 
-                // 5. Sentinel Moving Hazards patrolling mid-air corridors
                 { type: 'moving', x: -8, z: -25, radius: 2.2, y: 4.0, color: 0xff0055, speed: 1.2 },
                 { type: 'moving', x: 8, z: 25, radius: 2.2, y: 8.0, color: 0x4cc9f0, speed: -1.2 }
             ];
             maze3dDefs.forEach(cfg => this.createObstacle(cfg));
         } else if (type === 'maze') {
-            // Planar Maze
             const mazeWalls = [
                 { type: 'wall', x: 0, z: -35, w: 74, h: 20, d: 4, y: 10, color: 0x00f2fe },
                 { type: 'wall', x: 0, z: 35, w: 74, h: 20, d: 4, y: 10, color: 0x00f2fe },
@@ -304,7 +307,6 @@ class FlyRoverApp {
             ];
             mazeWalls.forEach(cfg => this.createObstacle(cfg));
         } else if (type === 'corridor') {
-            // Dual Straight Corridors
             const corridorWalls = [
                 { type: 'wall', x: -10, z: 0, w: 2, h: 20, d: 60, y: 10, color: 0x00f2fe },
                 { type: 'wall', x: 10, z: 0, w: 2, h: 20, d: 60, y: 10, color: 0x00f2fe },
@@ -314,7 +316,6 @@ class FlyRoverApp {
             ];
             corridorWalls.forEach(cfg => this.createObstacle(cfg));
         } else {
-            // Scattered Arena
             const scatteredObs = [
                 { type: 'floating', x: 0, z: 15, radius: 2.5, y: 8, color: 0xff0055 },
                 { type: 'pillar', x: -12, z: 10, radius: 1.8, h: 20, y: 10, color: 0x00f2fe },
@@ -326,6 +327,66 @@ class FlyRoverApp {
             ];
             scatteredObs.forEach(cfg => this.createObstacle(cfg));
         }
+    }
+
+    _spawnDefaultFoodTargets() {
+        // Clear existing food targets
+        this.foodTargets.forEach(food => {
+            this.scene.remove(food.group);
+        });
+        this.foodTargets = [];
+
+        // Spawn 4 initial 3D glowing food targets
+        const foodPositions = [
+            { x: -10, y: 6.0, z: -8 },
+            { x: 12, y: 9.0, z: 10 },
+            { x: 0, y: 4.5, z: 22 },
+            { x: -18, y: 8.0, z: -18 }
+        ];
+
+        foodPositions.forEach(pt => this.createFoodTarget(pt.x, pt.y, pt.z));
+    }
+
+    createFoodTarget(x, y, z) {
+        const group = new THREE.Group();
+
+        // Glowing Green Sphere Mesh
+        const geo = new THREE.SphereGeometry(1.6, 24, 24);
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0x70e000,
+            emissive: 0x70e000,
+            emissiveIntensity: 0.8,
+            roughness: 0.1,
+            metalness: 0.3
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        group.add(mesh);
+
+        // Outer Glowing Aura Halo Ring
+        const haloGeo = new THREE.TorusGeometry(2.0, 0.15, 12, 32);
+        const haloMat = new THREE.MeshBasicMaterial({ color: 0x38b000, transparent: true, opacity: 0.7 });
+        const halo = new THREE.Mesh(haloGeo, haloMat);
+        halo.rotation.x = Math.PI / 2;
+        group.add(halo);
+
+        // Point Light Source
+        const pLight = new THREE.PointLight(0x70e000, 1.8, 20);
+        group.add(pLight);
+
+        group.position.set(x, y, z);
+        this.scene.add(group);
+
+        const foodObj = {
+            group: group,
+            mesh: mesh,
+            halo: halo,
+            x: x,
+            y: y,
+            z: z,
+            radius: 1.6,
+            bobTime: Math.random() * 10
+        };
+        this.foodTargets.push(foodObj);
     }
 
     createObstacle(cfg) {
@@ -340,7 +401,6 @@ class FlyRoverApp {
         });
 
         if (cfg.type === 'gate') {
-            // Suspended Overpass Gate Bridge
             const group = new THREE.Group();
             const yPos = cfg.y || 10.0;
             const h = cfg.h || 4.0;
@@ -353,7 +413,6 @@ class FlyRoverApp {
             beam.castShadow = true;
             group.add(beam);
 
-            // Left / Right Support Columns
             const colGeo = new THREE.CylinderGeometry(1.2, 1.2, yPos, 16);
             const colL = new THREE.Mesh(colGeo, mat);
             colL.position.set(-w * 0.5 + 1.2, yPos * 0.5, 0);
@@ -391,7 +450,6 @@ class FlyRoverApp {
             mesh = new THREE.Mesh(geo, mat);
             mesh.position.set(cfg.x, yPos, cfg.z);
         } else {
-            // Sphere / Floating / Moving
             const r = cfg.radius || 2.2;
             const yPos = cfg.y !== undefined ? cfg.y : r + 0.5;
             const geo = new THREE.SphereGeometry(r, 20, 20);
@@ -468,7 +526,11 @@ class FlyRoverApp {
         });
         if (this.outerWallMesh) obstacleMeshes.push(this.outerWallMesh);
 
-        // Helper to compute 3D direction vector from yaw, pitch, azimuth offset, elevation offset
+        const foodMeshes = [];
+        this.foodTargets.forEach(f => {
+            if (f.mesh) foodMeshes.push(f.mesh);
+        });
+
         const get3DRayDir = (yaw, pitch, azimuthRad, elevationRad) => {
             const dir = new THREE.Vector3(0, 0, 1);
             dir.applyAxisAngle(new THREE.Vector3(1, 0, 0), -(pitch + elevationRad));
@@ -476,20 +538,25 @@ class FlyRoverApp {
             return dir.normalize();
         };
 
-        // 1. Left Eye Horizon Rays (-90° to 0° azimuth)
+        // 1. LC4 Left Eye Horizon Rays
         for (let i = 0; i < this.numRays; i++) {
             const frac = i / (this.numRays - 1);
             const azimuth = THREE.MathUtils.degToRad(-90 + frac * 90);
             const rayDir = get3DRayDir(this.flyYaw, this.flyPitch, azimuth, 0);
 
+            // Obstacle raycast
             this.raycaster.set(leftEyePos, rayDir);
             const hits = this.raycaster.intersectObjects(obstacleMeshes, true);
-
             let hitDist = this.maxRayDist;
             if (hits.length > 0) hitDist = hits[0].distance;
-
             const threatVal = Math.max(0, 1.0 - (hitDist / this.maxRayDist));
             this.leftRaySignals[i] = threatVal;
+
+            // Food raycast
+            const foodHits = this.raycaster.intersectObjects(foodMeshes, true);
+            let foodDist = this.maxRayDist;
+            if (foodHits.length > 0) foodDist = foodHits[0].distance;
+            this.leftFoodSignals[i] = Math.max(0, 1.0 - (foodDist / this.maxRayDist));
 
             const lineEnd = leftEyePos.clone().add(rayDir.clone().multiplyScalar(Math.min(hitDist, this.maxRayDist)));
             const pos = new Float32Array([leftEyePos.x, leftEyePos.y, leftEyePos.z, lineEnd.x, lineEnd.y, lineEnd.z]);
@@ -498,7 +565,7 @@ class FlyRoverApp {
             this.leftRayLines[i].material.opacity = threatVal > 0.1 ? 0.9 : 0.15;
         }
 
-        // 2. Right Eye Horizon Rays (0° to +90° azimuth)
+        // 2. LC4 Right Eye Horizon Rays
         for (let i = 0; i < this.numRays; i++) {
             const frac = i / (this.numRays - 1);
             const azimuth = THREE.MathUtils.degToRad(0 + frac * 90);
@@ -506,12 +573,15 @@ class FlyRoverApp {
 
             this.raycaster.set(rightEyePos, rayDir);
             const hits = this.raycaster.intersectObjects(obstacleMeshes, true);
-
             let hitDist = this.maxRayDist;
             if (hits.length > 0) hitDist = hits[0].distance;
-
             const threatVal = Math.max(0, 1.0 - (hitDist / this.maxRayDist));
             this.rightRaySignals[i] = threatVal;
+
+            const foodHits = this.raycaster.intersectObjects(foodMeshes, true);
+            let foodDist = this.maxRayDist;
+            if (foodHits.length > 0) foodDist = foodHits[0].distance;
+            this.rightFoodSignals[i] = Math.max(0, 1.0 - (foodDist / this.maxRayDist));
 
             const lineEnd = rightEyePos.clone().add(rayDir.clone().multiplyScalar(Math.min(hitDist, this.maxRayDist)));
             const pos = new Float32Array([rightEyePos.x, rightEyePos.y, rightEyePos.z, lineEnd.x, lineEnd.y, lineEnd.z]);
@@ -520,7 +590,7 @@ class FlyRoverApp {
             this.rightRayLines[i].material.opacity = threatVal > 0.1 ? 0.9 : 0.15;
         }
 
-        // 3. Overhead Top Elevation Rays (+30° Pitch offset)
+        // 3. Overhead Top Elevation Rays
         for (let i = 0; i < this.numRays; i++) {
             const frac = i / (this.numRays - 1);
             const azimuth = THREE.MathUtils.degToRad(-45 + frac * 90);
@@ -528,12 +598,15 @@ class FlyRoverApp {
 
             this.raycaster.set(flyCenterPos, rayDir);
             const hits = this.raycaster.intersectObjects(obstacleMeshes, true);
-
             let hitDist = this.maxRayDist;
             if (hits.length > 0) hitDist = hits[0].distance;
-
             const threatVal = Math.max(0, 1.0 - (hitDist / this.maxRayDist));
             this.topRaySignals[i] = threatVal;
+
+            const foodHits = this.raycaster.intersectObjects(foodMeshes, true);
+            let foodDist = this.maxRayDist;
+            if (foodHits.length > 0) foodDist = foodHits[0].distance;
+            this.topFoodSignals[i] = Math.max(0, 1.0 - (foodDist / this.maxRayDist));
 
             const lineEnd = flyCenterPos.clone().add(rayDir.clone().multiplyScalar(Math.min(hitDist, this.maxRayDist)));
             const pos = new Float32Array([flyCenterPos.x, flyCenterPos.y, flyCenterPos.z, lineEnd.x, lineEnd.y, lineEnd.z]);
@@ -542,7 +615,7 @@ class FlyRoverApp {
             this.topRayLines[i].material.opacity = threatVal > 0.1 ? 0.9 : 0.1;
         }
 
-        // 4. Downward Bottom Elevation Rays (-30° Pitch offset)
+        // 4. Downward Bottom Elevation Rays
         for (let i = 0; i < this.numRays; i++) {
             const frac = i / (this.numRays - 1);
             const azimuth = THREE.MathUtils.degToRad(-45 + frac * 90);
@@ -550,12 +623,15 @@ class FlyRoverApp {
 
             this.raycaster.set(flyCenterPos, rayDir);
             const hits = this.raycaster.intersectObjects(obstacleMeshes, true);
-
             let hitDist = this.maxRayDist;
             if (hits.length > 0) hitDist = hits[0].distance;
-
             const threatVal = Math.max(0, 1.0 - (hitDist / this.maxRayDist));
             this.botRaySignals[i] = threatVal;
+
+            const foodHits = this.raycaster.intersectObjects(foodMeshes, true);
+            let foodDist = this.maxRayDist;
+            if (foodHits.length > 0) foodDist = foodHits[0].distance;
+            this.botFoodSignals[i] = Math.max(0, 1.0 - (foodDist / this.maxRayDist));
 
             const lineEnd = flyCenterPos.clone().add(rayDir.clone().multiplyScalar(Math.min(hitDist, this.maxRayDist)));
             const pos = new Float32Array([flyCenterPos.x, flyCenterPos.y, flyCenterPos.z, lineEnd.x, lineEnd.y, lineEnd.z]);
@@ -565,7 +641,8 @@ class FlyRoverApp {
         }
     }
 
-    _updateObstacles(delta) {
+    _updateObstaclesAndFood(delta) {
+        // Update Moving Hazards
         this.obstacles.forEach(obs => {
             if (obs.type === 'moving') {
                 obs.moveTime += delta * obs.speed;
@@ -575,18 +652,86 @@ class FlyRoverApp {
                 }
             }
         });
+
+        // Floating Animation for Food Targets
+        this.foodTargets.forEach(food => {
+            food.bobTime += delta * 2.5;
+            if (food.group) {
+                food.group.position.y = food.y + Math.sin(food.bobTime) * 0.5;
+                if (food.halo) food.halo.rotation.z += delta * 1.5;
+            }
+        });
+
+        // Check Food Collection
+        for (let i = this.foodTargets.length - 1; i >= 0; i--) {
+            const food = this.foodTargets[i];
+            const dist = this.flyPos.distanceTo(food.group.position);
+            if (dist < 2.5) {
+                // Food Eaten! Trigger Green Particle Splash Effect
+                this._createFoodParticleSplash(food.group.position.clone());
+                this.scene.remove(food.group);
+                this.foodTargets.splice(i, 1);
+                this.foodScore++;
+
+                // Respawn a new food target at random 3D position
+                const newX = (Math.random() - 0.5) * 50;
+                const newZ = (Math.random() - 0.5) * 50;
+                const newY = 3.0 + Math.random() * 10.0;
+                this.createFoodTarget(newX, newY, newZ);
+            }
+        }
+
+        // Animate food particle splashes
+        for (let i = this.particleSplashes.length - 1; i >= 0; i--) {
+            const splash = this.particleSplashes[i];
+            splash.life -= delta * 2.0;
+            if (splash.life <= 0) {
+                this.scene.remove(splash.group);
+                this.particleSplashes.splice(i, 1);
+            } else {
+                splash.particles.forEach(p => {
+                    p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+                });
+                splash.group.scale.multiplyScalar(0.98);
+            }
+        }
+    }
+
+    _createFoodParticleSplash(pos) {
+        const group = new THREE.Group();
+        const particles = [];
+        const mat = new THREE.MeshBasicMaterial({ color: 0x70e000 });
+        const geo = new THREE.SphereGeometry(0.3, 8, 8);
+
+        for (let i = 0; i < 15; i++) {
+            const p = new THREE.Mesh(geo, mat.clone());
+            p.position.copy(pos);
+            p.userData.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 8.0,
+                (Math.random() - 0.5) * 8.0 + 3.0,
+                (Math.random() - 0.5) * 8.0
+            );
+            group.add(p);
+            particles.push(p);
+        }
+
+        this.scene.add(group);
+        this.particleSplashes.push({ group: group, particles: particles, life: 1.0 });
     }
 
     _updatePhysics(delta) {
-        this._updateObstacles(delta);
+        this._updateObstaclesAndFood(delta);
         this._castEyeRays();
 
         let wLeft = 1.0;
         let wRight = 1.0;
 
         if (this.isAutoPilot) {
-            // Run Connectome Neural Matrix Engine in 3D
-            const res = this.brain.update(this.leftRaySignals, this.rightRaySignals, this.topRaySignals, this.botRaySignals);
+            // Run Connectome Neural Matrix Engine in 3D (Dual LC4 Avoidance + LC10 Foraging)
+            const res = this.brain.update(
+                this.leftRaySignals, this.rightRaySignals, this.topRaySignals, this.botRaySignals,
+                this.leftFoodSignals, this.rightFoodSignals, this.topFoodSignals, this.botFoodSignals
+            );
             wLeft = res.wingPowerLeft;
             wRight = res.wingPowerRight;
             this.flyPitch += res.pitchDrive * delta * 1.5;
@@ -596,18 +741,13 @@ class FlyRoverApp {
             if (this.keys.ArrowRight || this.keys.d) wLeft = 2.0, wRight = 0.3;
             if (this.keys.ArrowUp || this.keys.w) wLeft = 1.8, wRight = 1.8;
             if (this.keys.ArrowDown || this.keys.s) wLeft = 0.4, wRight = 0.4;
-            if (this.keys.q || this.keys.Q) this.flyPitch += 1.8 * delta; // Pitch Up / Climb
-            if (this.keys.e || this.keys.E) this.flyPitch -= 1.8 * delta; // Pitch Down / Dive
+            if (this.keys.q || this.keys.Q) this.flyPitch += 1.8 * delta;
+            if (this.keys.e || this.keys.E) this.flyPitch -= 1.8 * delta;
         }
 
-        // Natural pitch decay back towards level flight (0 rad)
         this.flyPitch *= 0.96;
-        // Clamp pitch angle between -45° (-0.785 rad) and +45° (+0.785 rad)
         this.flyPitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, this.flyPitch));
 
-        // 6-DOF Kinematics:
-        // Forward Thrust (Speed): v ∝ (wLeft + wRight)
-        // Differential Yaw Angular Velocity: ω ∝ (wRight - wLeft)
         const forwardThrust = (wLeft + wRight) * 0.5 * 12.0;
         const turnRate = (wRight - wLeft) * 2.8;
 
@@ -620,24 +760,18 @@ class FlyRoverApp {
         this.flyPos.z += Math.cos(this.flyYaw) * speedXZ * delta;
         this.flyPos.y += speedY * delta;
 
-        // 1. Invisible Ceiling Constraint (Y = 20.0m) & Ground Floor Constraint (Y = 1.0m)
+        // Ceiling & Ground Constraints
         if (this.flyPos.y >= this.ceilingY - 2.0) {
-            // Near invisible ceiling -> Pitch downward to reflect away
             this.flyPitch = THREE.MathUtils.lerp(this.flyPitch, -0.6, 0.2);
         }
-        if (this.flyPos.y > this.ceilingY) {
-            this.flyPos.y = this.ceilingY;
-        }
+        if (this.flyPos.y > this.ceilingY) this.flyPos.y = this.ceilingY;
 
         if (this.flyPos.y <= 1.5) {
-            // Near floor -> Pitch upward to climb away
             this.flyPitch = THREE.MathUtils.lerp(this.flyPitch, 0.2, 0.2);
         }
-        if (this.flyPos.y < 1.0) {
-            this.flyPos.y = 1.0;
-        }
+        if (this.flyPos.y < 1.0) this.flyPos.y = 1.0;
 
-        // 2. Outer Perimeter Wall Cylinder Containment (Radius = 42.0m)
+        // Outer Perimeter Containment
         const maxRadius = 42.0;
         const currentRadius = Math.hypot(this.flyPos.x, this.flyPos.z);
         if (currentRadius > maxRadius) {
@@ -648,18 +782,16 @@ class FlyRoverApp {
             this.flyYaw = THREE.MathUtils.lerp(this.flyYaw, inwardAngle, 0.4);
         }
 
-        // 3. 3D Volumetric Obstacle Physical Collision & Turning Torque
+        // Obstacle Collision
         const flyRadius = 1.2;
         this.obstacles.forEach(obs => {
             const obsY = obs.y !== undefined ? obs.y : 10;
             const obsH = obs.h || 20;
 
-            // Check vertical height overlap interval
             const yMin = obsY - (obsH * 0.5) - flyRadius;
             const yMax = obsY + (obsH * 0.5) + flyRadius;
 
             if (this.flyPos.y >= yMin && this.flyPos.y <= yMax) {
-                // Fly is within vertical range of this obstacle
                 if (obs.type === 'wall' || obs.type === 'low_wall') {
                     const wHalf = (obs.w || 2) * 0.5 + flyRadius;
                     const dHalf = (obs.d || 2) * 0.5 + flyRadius;
@@ -683,24 +815,21 @@ class FlyRoverApp {
                         this.flyYaw = THREE.MathUtils.lerp(this.flyYaw, targetTurnAngle, 0.45);
                     }
                 } else if (obs.type === 'gate') {
-                    // Overpass bridge beam box collision
                     const wHalf = (obs.w || 20) * 0.5 + flyRadius;
                     const dHalf = (obs.d || 4) * 0.5 + flyRadius;
                     const dx = this.flyPos.x - obs.x;
                     const dz = this.flyPos.z - obs.z;
 
                     if (Math.abs(dx) < wHalf && Math.abs(dz) < dHalf) {
-                        // Push back vertically or horizontally
                         if (this.flyPos.y < obsY) {
                             this.flyPos.y = obsY - (obsH * 0.5) - flyRadius;
-                            this.flyPitch = -0.5; // Dive
+                            this.flyPitch = -0.5;
                         } else {
                             this.flyPos.y = obsY + (obsH * 0.5) + flyRadius;
-                            this.flyPitch = 0.5; // Climb
+                            this.flyPitch = 0.5;
                         }
                     }
                 } else {
-                    // Sphere / Pillar / Floating
                     const minDist = (obs.radius || 2.0) + flyRadius;
                     const dx = this.flyPos.x - (obs.x || obs.mesh.position.x);
                     const dz = this.flyPos.z - (obs.z || obs.mesh.position.z);
@@ -718,7 +847,7 @@ class FlyRoverApp {
             }
         });
 
-        // 4. Biological Corner Anti-Stuck & Reverse Escape Saccade Reflex
+        // Corner Stuck Saccade Reflex
         const moveDistThisFrame = this.flyPos.distanceTo(this.lastPos);
         const isNearObstacle = (this.brain.v_left_eye > 0.18 || this.brain.v_right_eye > 0.18);
 
@@ -736,7 +865,6 @@ class FlyRoverApp {
             this.stuckTimer = 0.0;
         }
 
-        // Apply 3D position and rotational pitch/yaw transforms to Fly Mesh & Ground Shadow Ring
         this.flyModel.group.position.copy(this.flyPos);
         this.flyModel.group.rotation.set(0, 0, 0);
         this.flyModel.group.rotation.y = this.flyYaw;
@@ -747,10 +875,8 @@ class FlyRoverApp {
             this.groundShadowRing.rotation.y = this.flyYaw;
         }
 
-        // Animate wings with pitch dynamic wing beat control
         this.flyModel.updateWings(delta, wLeft, wRight, this.flyPitch);
 
-        // Update Stats
         const moveDist = this.flyPos.distanceTo(this.lastPos);
         this.flightDistance += moveDist;
         this.lastPos.copy(this.flyPos);
@@ -801,38 +927,38 @@ class FlyRoverApp {
     }
 
     _updateHUD(wLeft, wRight, speed) {
-        // Stats Boxes
         const elSpeed = document.getElementById('statSpeed');
         const elDist = document.getElementById('statDist');
-        const elDodge = document.getElementById('statDodge');
-        const elSyn = document.getElementById('statSynapses');
+        const elFood = document.getElementById('statFood');
         const elAlt = document.getElementById('statAlt');
         const elPitch = document.getElementById('statPitch');
 
         if (elSpeed) elSpeed.innerText = speed.toFixed(1);
         if (elDist) elDist.innerText = Math.floor(this.flightDistance) + 'm';
-        if (elDodge) elDodge.innerText = this.dodgeCount;
-        if (elSyn) elSyn.innerText = this.brain.synapseCount.toLocaleString();
+        if (elFood) elFood.innerText = this.foodScore;
         if (elAlt) elAlt.innerText = this.flyPos.y.toFixed(1) + 'm';
         if (elPitch) elPitch.innerText = THREE.MathUtils.radToDeg(this.flyPitch).toFixed(0) + '°';
 
-        // Eye Sensor Bars
+        // Eye Sensor Bars (Red/Cyan for Obstacles, Green overlay when Foraging)
         for (let i = 0; i < this.numRays; i++) {
             const barL = document.getElementById(`sbarL_${i}`);
             const barR = document.getElementById(`sbarR_${i}`);
             if (barL) {
-                const hL = Math.max(10, Math.floor(this.leftRaySignals[i] * 100));
+                const threatL = this.leftRaySignals[i];
+                const foodL = this.leftFoodSignals[i];
+                const hL = Math.max(10, Math.floor(Math.max(threatL, foodL) * 100));
                 barL.style.height = `${hL}%`;
-                barL.style.backgroundColor = this.leftRaySignals[i] > 0.5 ? 'var(--danger-red)' : 'var(--accent-magenta)';
+                barL.style.backgroundColor = foodL > threatL ? '#70e000' : (threatL > 0.5 ? 'var(--danger-red)' : 'var(--accent-magenta)');
             }
             if (barR) {
-                const hR = Math.max(10, Math.floor(this.rightRaySignals[i] * 100));
+                const threatR = this.rightRaySignals[i];
+                const foodR = this.rightFoodSignals[i];
+                const hR = Math.max(10, Math.floor(Math.max(threatR, foodR) * 100));
                 barR.style.height = `${hR}%`;
-                barR.style.backgroundColor = this.rightRaySignals[i] > 0.5 ? 'var(--danger-red)' : 'var(--accent-cyan)';
+                barR.style.backgroundColor = foodR > threatR ? '#70e000' : (threatR > 0.5 ? 'var(--danger-red)' : 'var(--accent-cyan)');
             }
         }
 
-        // Wing Power Gauges
         const fillL = document.getElementById('wingFillL');
         const numL = document.getElementById('wingNumL');
         const fillR = document.getElementById('wingFillR');
@@ -898,7 +1024,7 @@ class FlyRoverApp {
             toggle.addEventListener('change', (e) => {
                 this.isAutoPilot = e.target.checked;
                 if (modeLabel) {
-                    modeLabel.innerText = this.isAutoPilot ? 'Connectome Auto-Pilot (3D Drosophila Matrix)' : 'Manual Flight Controls (WASD / Arrows / Q-E Pitch)';
+                    modeLabel.innerText = this.isAutoPilot ? 'Connectome Auto-Pilot (LC4 Avoid + LC10 Forage)' : 'Manual Flight Controls (WASD / Arrows / Q-E Pitch)';
                     modeLabel.style.color = this.isAutoPilot ? 'var(--accent-cyan)' : 'var(--accent-gold)';
                 }
             });
@@ -924,16 +1050,25 @@ class FlyRoverApp {
             });
         });
 
+        // Spawn Food Button
+        const btnSpawnFood = document.getElementById('btnSpawnFood');
+        if (btnSpawnFood) {
+            btnSpawnFood.addEventListener('click', () => {
+                const forwardDir = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw);
+                const spawnPos = this.flyPos.clone().add(forwardDir.multiplyScalar(12.0));
+                this.createFoodTarget(spawnPos.x, Math.max(3.0, this.flyPos.y), spawnPos.z);
+            });
+        }
+
+        // Spawn Obstacle Button
         const btnSpawn = document.getElementById('btnSpawnObstacle');
         if (btnSpawn) {
             btnSpawn.addEventListener('click', () => {
                 const forwardDir = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw);
                 const spawnPos = this.flyPos.clone().add(forwardDir.multiplyScalar(10.0));
                 
-                // Spawn obstacle at the fruit fly's current altitude to ensure collision/dodging
                 const randType = Math.random();
                 if (randType < 0.4) {
-                    // Full height pillar blocking all altitudes
                     this.createObstacle({
                         type: 'pillar',
                         x: spawnPos.x,
@@ -944,7 +1079,6 @@ class FlyRoverApp {
                         color: 0xff0055
                     });
                 } else if (randType < 0.7) {
-                    // Ground sphere at current fly level
                     this.createObstacle({
                         type: 'sphere',
                         x: spawnPos.x,
@@ -954,7 +1088,6 @@ class FlyRoverApp {
                         color: 0xff0055
                     });
                 } else {
-                    // Suspended gate
                     this.createObstacle({
                         type: 'gate',
                         x: spawnPos.x,
@@ -974,6 +1107,7 @@ class FlyRoverApp {
                 this.flyPos.set(0, 2.5, 0);
                 this.flyYaw = 0;
                 this.flyPitch = 0;
+                this.foodScore = 0;
             });
         }
 
@@ -988,16 +1122,20 @@ class FlyRoverApp {
             const intersects = clickRay.intersectObject(this.groundMesh);
             if (intersects.length > 0) {
                 const pt = intersects[0].point;
-                // Spawn a full height pillar or ground sphere at clicked location
-                this.createObstacle({
-                    type: Math.random() > 0.5 ? 'pillar' : 'sphere',
-                    x: pt.x,
-                    z: pt.z,
-                    y: 2.5,
-                    radius: 2.2,
-                    h: 20.0,
-                    color: 0xffb703
-                });
+                // Shift click spawns food, normal click spawns obstacle
+                if (e.shiftKey) {
+                    this.createFoodTarget(pt.x, 6.0, pt.z);
+                } else {
+                    this.createObstacle({
+                        type: Math.random() > 0.5 ? 'pillar' : 'sphere',
+                        x: pt.x,
+                        z: pt.z,
+                        y: 2.5,
+                        radius: 2.2,
+                        h: 20.0,
+                        color: 0xffb703
+                    });
+                }
             }
         });
     }

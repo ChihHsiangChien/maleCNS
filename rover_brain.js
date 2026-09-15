@@ -1,8 +1,8 @@
 /**
- * Connectome Rover Neural Brain Engine (Full 3D Volumetric Avoidance)
- * Reads real neuPrint CSV data (lc4_connectome_matrix.csv) and calculates
- * Left/Right Eye & Top/Bottom Elevation sensory inputs to
- * Left/Right Wing differential motor outputs + Vertical Pitch Control.
+ * Connectome Rover Neural Brain Engine (Dual-Pathway: LC4 Avoidance + LC10 STMD Foraging)
+ * Reads real neuPrint CSV data (lc4_connectome_matrix.csv & lc10_connectome_matrix.csv)
+ * Calculates Left/Right/Top/Bottom LC4 Obstacle Threat & LC10 Food Attraction
+ * Outputting 6-DOF differential wing power & 3D pitch drive.
  */
 
 class RoverConnectomeBrain {
@@ -10,72 +10,97 @@ class RoverConnectomeBrain {
         this.numRaysPerEye = numRaysPerEye;
         this.totalRays = numRaysPerEye * 2; // 32 total visual columns (16 Left, 16 Right)
 
-        // Eye Visual Stimulus Arrays (0.0 = clear, 1.0 = immediate obstacle threat)
+        // LC4 Visual Threat Sensors (0.0 = clear, 1.0 = threat)
         this.leftEyeSensors = new Float32Array(numRaysPerEye);
         this.rightEyeSensors = new Float32Array(numRaysPerEye);
         this.topEyeSensors = new Float32Array(numRaysPerEye);
         this.bottomEyeSensors = new Float32Array(numRaysPerEye);
+
+        // LC10 STMD Food Attraction Sensors (0.0 = no target, 1.0 = food target)
+        this.leftFoodSensors = new Float32Array(numRaysPerEye);
+        this.rightFoodSensors = new Float32Array(numRaysPerEye);
+        this.topFoodSensors = new Float32Array(numRaysPerEye);
+        this.bottomFoodSensors = new Float32Array(numRaysPerEye);
 
         // Connectome Matrix Stats
         this.isLoaded = false;
         this.synapseCount = 0;
         this.achSynapses = 0;
         this.gabaSynapses = 0;
+        this.lc10Synapses = 0;
 
-        // Weights matrix aggregated across 32 retinotopic columns
+        // LC4 Weights matrix aggregated across 32 retinotopic columns
         this.columnWeights = new Array(this.totalRays).fill(null).map(() => ({
             ach: 0.5,
             gaba: 0.5,
             totalWeight: 1.0
         }));
 
-        // Internal Membrane Potentials
+        // LC10 STMD Weights matrix aggregated across 32 retinotopic columns
+        this.lc10Weights = new Array(this.totalRays).fill(null).map(() => ({
+            ach: 1.5,
+            totalWeight: 1.5
+        }));
+
+        // Internal Membrane Potentials (LC4 Threat)
         this.v_left_eye = 0.0;
         this.v_right_eye = 0.0;
         this.v_top_eye = 0.0;
         this.v_bottom_eye = 0.0;
+
+        // Internal Membrane Potentials (LC10 Food Attraction)
+        this.v_lc10_left = 0.0;
+        this.v_lc10_right = 0.0;
+        this.v_lc10_top = 0.0;
+        this.v_lc10_bottom = 0.0;
+
+        // Motor Controls
         this.v_wing_left = 1.0;   // Normal cruising power
         this.v_wing_right = 1.0;  // Normal cruising power
-        this.v_pitch_drive = 0.0; // Vertical pitch drive (-1.0 dive to +1.0 climb)
-        
+        this.v_pitch_drive = 0.0; // Vertical pitch drive (-1.5 dive to +1.5 climb)
+
+        // Behavioral Mode Flag
+        this.isForaging = false;
+
         // Dynamic Parameters
         this.baseCruisingPower = 1.0;
         this.avoidanceGain = 2.2;
+        this.attractionGain = 2.5;
         this.pitchGain = 1.8;
         this.leakFactor = 0.7;
 
         // Load real database asynchronously
-        this.loadConnectomeMatrix();
+        this.loadConnectomeMatrices();
     }
 
     /**
-     * Loads and parses lc4_connectome_matrix.csv
+     * Loads and parses lc4_connectome_matrix.csv and lc10_connectome_matrix.csv
      */
-    async loadConnectomeMatrix() {
+    async loadConnectomeMatrices() {
         try {
-            const resp = await fetch('lc4_connectome_matrix.csv');
-            if (!resp.ok) throw new Error(`HTTP error ${resp.status}`);
-            const text = await resp.text();
-            this.parseCSV(text);
+            const resp4 = await fetch('lc4_connectome_matrix.csv');
+            if (resp4.ok) {
+                const text4 = await resp4.text();
+                this.parseLC4CSV(text4);
+            }
+            const resp10 = await fetch('lc10_connectome_matrix.csv');
+            if (resp10.ok) {
+                const text10 = await resp10.text();
+                this.parseLC10CSV(text10);
+            }
             this.isLoaded = true;
-            console.log(`[ConnectomeBrain] Successfully loaded ${this.synapseCount} synapses from lc4_connectome_matrix.csv`);
+            console.log(`[ConnectomeBrain] Successfully loaded LC4 (${this.synapseCount}) & LC10 (${this.lc10Synapses}) matrices.`);
         } catch (err) {
             console.warn('[ConnectomeBrain] CSV fetch failed, synthesizing biological connectome fallback:', err);
             this._setupSyntheticFallback();
         }
     }
 
-    /**
-     * Parses real neuPrint CSV data
-     */
-    parseCSV(csvText) {
+    parseLC4CSV(csvText) {
         const lines = csvText.split('\n');
         if (lines.length < 2) return;
 
-        let count = 0;
-        let achCount = 0;
-        let gabaCount = 0;
-
+        let count = 0, achCount = 0, gabaCount = 0;
         for (let i = 1; i < lines.length; i++) {
             const line = lines[i].trim();
             if (!line) continue;
@@ -85,7 +110,6 @@ class RoverConnectomeBrain {
             const weight = parseFloat(cols[4]) || 1.0;
             const nt = (cols[5] || '').toLowerCase();
             const spatialX = parseInt(cols[6], 10);
-
             const colIdx = Math.min(this.totalRays - 1, Math.max(0, isNaN(spatialX) ? 0 : spatialX % this.totalRays));
 
             if (nt.includes('acetylcholine') || nt.includes('ach')) {
@@ -95,7 +119,6 @@ class RoverConnectomeBrain {
                 this.columnWeights[colIdx].gaba += weight * 0.01;
                 gabaCount++;
             }
-
             this.columnWeights[colIdx].totalWeight += weight * 0.01;
             count++;
         }
@@ -113,10 +136,33 @@ class RoverConnectomeBrain {
         });
     }
 
+    parseLC10CSV(csvText) {
+        const lines = csvText.split('\n');
+        if (lines.length < 2) return;
+
+        let count = 0;
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            const cols = line.split(',');
+            if (cols.length < 8) continue;
+
+            const weight = parseFloat(cols[4]) || 1.0;
+            const spatialX = parseInt(cols[6], 10);
+            const colIdx = Math.min(this.totalRays - 1, Math.max(0, isNaN(spatialX) ? 0 : spatialX % this.totalRays));
+
+            this.lc10Weights[colIdx].ach += weight * 0.02;
+            this.lc10Weights[colIdx].totalWeight += weight * 0.02;
+            count++;
+        }
+        this.lc10Synapses = count;
+    }
+
     _setupSyntheticFallback() {
         this.synapseCount = 22875;
         this.achSynapses = 14200;
         this.gabaSynapses = 8675;
+        this.lc10Synapses = 1250;
         this.isLoaded = true;
 
         for (let i = 0; i < this.totalRays; i++) {
@@ -127,23 +173,21 @@ class RoverConnectomeBrain {
                 achRatio: 0.6,
                 gabaRatio: 0.4
             };
+            this.lc10Weights[i] = {
+                ach: 1.8 + Math.random() * 0.5,
+                totalWeight: 2.3
+            };
         }
     }
 
     /**
-     * Updates neural calculation loop in 3D.
-     * @param {Float32Array} leftRays Left Eye Horizon Rays
-     * @param {Float32Array} rightRays Right Eye Horizon Rays
-     * @param {Float32Array} topRays Overhead Top Elevation Rays (+30°)
-     * @param {Float32Array} bottomRays Downward Bottom Elevation Rays (-30°)
+     * Updates dual-pathway neural calculation loop in 3D.
      */
-    update(leftRays, rightRays, topRays, bottomRays) {
-        let leftThreatDrive = 0.0;
-        let rightThreatDrive = 0.0;
-        let topThreatDrive = 0.0;
-        let bottomThreatDrive = 0.0;
+    update(leftRays, rightRays, topRays, bottomRays, leftFoodRays, rightFoodRays, topFoodRays, bottomFoodRays) {
+        let leftThreatDrive = 0.0, rightThreatDrive = 0.0, topThreatDrive = 0.0, bottomThreatDrive = 0.0;
+        let leftFoodDrive = 0.0, rightFoodDrive = 0.0, topFoodDrive = 0.0, bottomFoodDrive = 0.0;
 
-        // 1. Process Horizon Eye Inputs (Left 0..15, Right 16..31)
+        // 1. Process LC4 Threat Horizon Rays
         for (let i = 0; i < this.numRaysPerEye; i++) {
             const threatL = leftRays[i] || 0.0;
             this.leftEyeSensors[i] = threatL;
@@ -156,7 +200,7 @@ class RoverConnectomeBrain {
             rightThreatDrive += threatR * (cwR.achRatio || 0.6) * cwR.totalWeight * 0.2;
         }
 
-        // 2. Process Vertical Elevation Rays (Top +30° vs Bottom -30°)
+        // 2. Process LC4 Threat Vertical Elevation Rays
         if (topRays && bottomRays) {
             for (let i = 0; i < this.numRaysPerEye; i++) {
                 const threatT = topRays[i] || 0.0;
@@ -169,32 +213,78 @@ class RoverConnectomeBrain {
             }
         }
 
-        // Leaky integration of eye potentials
+        // 3. Process LC10 STMD Food Attraction Rays
+        if (leftFoodRays && rightFoodRays) {
+            for (let i = 0; i < this.numRaysPerEye; i++) {
+                const foodL = leftFoodRays[i] || 0.0;
+                this.leftFoodSensors[i] = foodL;
+                const w10L = this.lc10Weights[i];
+                leftFoodDrive += foodL * w10L.totalWeight * 0.35;
+
+                const foodR = rightFoodRays[i] || 0.0;
+                this.rightFoodSensors[i] = foodR;
+                const w10R = this.lc10Weights[i + this.numRaysPerEye];
+                rightFoodDrive += foodR * w10R.totalWeight * 0.35;
+            }
+        }
+
+        if (topFoodRays && bottomFoodRays) {
+            for (let i = 0; i < this.numRaysPerEye; i++) {
+                const foodT = topFoodRays[i] || 0.0;
+                this.topFoodSensors[i] = foodT;
+                topFoodDrive += foodT * 0.35;
+
+                const foodB = bottomFoodRays[i] || 0.0;
+                this.bottomFoodSensors[i] = foodB;
+                bottomFoodDrive += foodB * 0.35;
+            }
+        }
+
+        // Leaky integration of membrane potentials
         this.v_left_eye = (this.leakFactor * this.v_left_eye) + leftThreatDrive;
         this.v_right_eye = (this.leakFactor * this.v_right_eye) + rightThreatDrive;
         this.v_top_eye = (this.leakFactor * this.v_top_eye) + topThreatDrive;
         this.v_bottom_eye = (this.leakFactor * this.v_bottom_eye) + bottomThreatDrive;
 
-        // 3. Horizontal Yaw Reflex Routing
-        let targetWingLeft = this.baseCruisingPower + (this.v_right_eye * this.avoidanceGain) - (this.v_left_eye * 0.4);
-        let targetWingRight = this.baseCruisingPower + (this.v_left_eye * this.avoidanceGain) - (this.v_right_eye * 0.4);
+        this.v_lc10_left = (this.leakFactor * this.v_lc10_left) + leftFoodDrive;
+        this.v_lc10_right = (this.leakFactor * this.v_lc10_right) + rightFoodDrive;
+        this.v_lc10_top = (this.leakFactor * this.v_lc10_top) + topFoodDrive;
+        this.v_lc10_bottom = (this.leakFactor * this.v_lc10_bottom) + bottomFoodDrive;
 
-        // Head-on Wall Symmetry Breaking (LC4 / Giant Fiber Escape Saccade)
-        if (this.v_left_eye > 0.28 && this.v_right_eye > 0.28) {
-            if (this.v_left_eye >= this.v_right_eye) {
-                targetWingRight += 2.2; // Sharp turn LEFT
-            } else {
-                targetWingLeft += 2.2;  // Sharp turn RIGHT
+        // 4. Subsumption Priority Integration (LC4 Threat Avoidance vs LC10 Food Attraction)
+        const maxLC4Threat = Math.max(this.v_left_eye, this.v_right_eye, this.v_top_eye, this.v_bottom_eye);
+        const maxLC10Food = Math.max(this.v_lc10_left, this.v_lc10_right, this.v_lc10_top, this.v_lc10_bottom);
+
+        let targetWingLeft = this.baseCruisingPower;
+        let targetWingRight = this.baseCruisingPower;
+        let targetPitch = 0.0;
+
+        if (maxLC4Threat > 0.3) {
+            // Emergency LC4 Threat Avoidance Mode (Obstacle Evasion Overrides)
+            this.isForaging = false;
+            targetWingLeft += (this.v_right_eye * this.avoidanceGain) - (this.v_left_eye * 0.4);
+            targetWingRight += (this.v_left_eye * this.avoidanceGain) - (this.v_right_eye * 0.4);
+
+            if (this.v_left_eye > 0.28 && this.v_right_eye > 0.28) {
+                if (this.v_left_eye >= this.v_right_eye) targetWingRight += 2.2;
+                else targetWingLeft += 2.2;
             }
+            targetPitch = (this.v_bottom_eye * this.pitchGain) - (this.v_top_eye * (this.pitchGain * 1.2));
+        } else if (maxLC10Food > 0.1) {
+            // LC10 Food Target Pursuit & Foraging Mode (Positive Attraction)
+            this.isForaging = true;
+            // Ipsilateral attraction: Food on Left -> Left Wing Power Up -> Turns LEFT towards food!
+            targetWingLeft += (this.v_lc10_left * this.attractionGain);
+            targetWingRight += (this.v_lc10_right * this.attractionGain);
+
+            // Vertical pitch attraction: Food above -> Pitch UP; Food below -> Pitch DOWN
+            targetPitch = (this.v_lc10_top * 1.5) - (this.v_lc10_bottom * 1.5);
+        } else {
+            // Standard Cruising
+            this.isForaging = false;
         }
 
-        // 4. Vertical Pitch Reflex Routing
-        // Threat below -> Pitch UP (+Climb) to fly over low obstacles!
-        // Threat above (overhead bridge/ceiling) -> Pitch DOWN (-Dive) to dive under gaps!
-        const targetPitch = (this.v_bottom_eye * this.pitchGain) - (this.v_top_eye * (this.pitchGain * 1.2));
         this.v_pitch_drive = THREE.MathUtils.lerp(this.v_pitch_drive, Math.max(-1.5, Math.min(1.5, targetPitch)), 0.3);
-
-        // Smooth motor output transition
         this.v_wing_left = THREE.MathUtils.lerp(this.v_wing_left, Math.max(0.2, Math.min(3.2, targetWingLeft)), 0.25);
         this.v_wing_right = THREE.MathUtils.lerp(this.v_wing_right, Math.max(0.2, Math.min(3.2, targetWingRight)), 0.25);
 
@@ -202,12 +292,19 @@ class RoverConnectomeBrain {
             wingPowerLeft: this.v_wing_left,
             wingPowerRight: this.v_wing_right,
             pitchDrive: this.v_pitch_drive,
+            isForaging: this.isForaging,
             v_left_eye: this.v_left_eye,
             v_right_eye: this.v_right_eye,
             v_top_eye: this.v_top_eye,
             v_bottom_eye: this.v_bottom_eye,
+            v_lc10_left: this.v_lc10_left,
+            v_lc10_right: this.v_lc10_right,
+            v_lc10_top: this.v_lc10_top,
+            v_lc10_bottom: this.v_lc10_bottom,
             stats: {
-                synapses: this.synapseCount,
+                synapses: this.synapseCount + this.lc10Synapses,
+                lc4Synapses: this.synapseCount,
+                lc10Synapses: this.lc10Synapses,
                 ach: this.achSynapses,
                 gaba: this.gabaSynapses
             }

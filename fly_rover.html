@@ -41,7 +41,7 @@
             <div class="hud-overlay">
                 <div class="hud-badge">
                     <div class="hud-pulse"></div>
-                    <span>CONNECTOME ACTIVE: LC4 / ACh-GABA CIRCUIT</span>
+                    <span>CONNECTOME ACTIVE: DUAL LC4 (AVOID) + LC10 STMD (FORAGE) CIRCUIT</span>
                 </div>
 
                 <!-- Camera View Switcher -->
@@ -72,6 +72,7 @@
                         <option value="corridor">🛣️ Dual Corridor</option>
                         <option value="scattered">🔮 Scattered Arena</option>
                     </select>
+                    <button id="btnSpawnFood" class="btn" style="background:rgba(56, 176, 0, 0.2); color:#70e000; border-color:#70e000;">🍏 Spawn Food Target</button>
                     <button id="btnSpawnObstacle" class="btn btn-primary">➕ Spawn Obstacle</button>
                     <button id="btnResetFly" class="btn">🔄 Reset Fly</button>
                 </div>
@@ -84,7 +85,7 @@
             <!-- Overview Telemetry Stats -->
             <section class="panel-card">
                 <div class="panel-title">
-                    <span>📊</span> 3D Volumetric Flight Telemetry
+                    <span>📊</span> 3D Volumetric Flight & Foraging Telemetry
                 </div>
                 <div class="stats-grid">
                     <div class="stat-box">
@@ -100,8 +101,8 @@
                         <div class="stat-label">Pitch Angle</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-val" id="statDodge">0</div>
-                        <div class="stat-label">Dodges</div>
+                        <div class="stat-val" id="statFood" style="color:#70e000;">0</div>
+                        <div class="stat-label">Food Eaten</div>
                     </div>
                 </div>
             </section>
