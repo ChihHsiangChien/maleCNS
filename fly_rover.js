@@ -213,23 +213,41 @@ class FlyRoverApp {
         if (type === 'maze') {
             // 🏰 Planar Maze Labyrinth Layout (平面迷宮)
             const mazeWalls = [
-                // Outer Perimeter Boundary Walls
-                { type: 'wall', x: 0, z: -35, w: 70, h: 6, d: 2, color: 0x00f2fe },
-                { type: 'wall', x: 0, z: 35, w: 70, h: 6, d: 2, color: 0x00f2fe },
-                { type: 'wall', x: -35, z: 0, w: 2, h: 6, d: 70, color: 0x00f2fe },
-                { type: 'wall', x: 35, z: 0, w: 2, h: 6, d: 70, color: 0x00f2fe },
+                // Seamless Outer Perimeter Boundary Walls (Slightly extended to fully seal corners)
+                { type: 'wall', x: 0, z: -35, w: 74, h: 6, d: 4, color: 0x00f2fe },
+                { type: 'wall', x: 0, z: 35, w: 74, h: 6, d: 4, color: 0x00f2fe },
+                { type: 'wall', x: -35, z: 0, w: 4, h: 6, d: 74, color: 0x00f2fe },
+                { type: 'wall', x: 35, z: 0, w: 4, h: 6, d: 74, color: 0x00f2fe },
 
-                // Inner Maze Partition Walls & Corridor Turnings
-                { type: 'wall', x: -16, z: -18, w: 26, h: 6, d: 2, color: 0xf72585 },
-                { type: 'wall', x: 16, z: -18, w: 26, h: 6, d: 2, color: 0xf72585 },
-                { type: 'wall', x: -16, z: 18, w: 26, h: 6, d: 2, color: 0xffb703 },
-                { type: 'wall', x: 16, z: 18, w: 26, h: 6, d: 2, color: 0xffb703 },
+                // Corner Smooth Junction Pillars (Eliminate acute corner gaps)
+                { type: 'pillar', x: -33, z: -33, radius: 3.0, color: 0x00f2fe },
+                { type: 'pillar', x: 33, z: -33, radius: 3.0, color: 0x00f2fe },
+                { type: 'pillar', x: -33, z: 33, radius: 3.0, color: 0x00f2fe },
+                { type: 'pillar', x: 33, z: 33, radius: 3.0, color: 0x00f2fe },
+
+                // Inner Maze Partition Walls & Corridor Turnings (Extended for gap-free interlocking)
+                { type: 'wall', x: -16, z: -18, w: 30, h: 6, d: 3, color: 0xf72585 },
+                { type: 'wall', x: 16, z: -18, w: 30, h: 6, d: 3, color: 0xf72585 },
+                { type: 'wall', x: -16, z: 18, w: 30, h: 6, d: 3, color: 0xffb703 },
+                { type: 'wall', x: 16, z: 18, w: 30, h: 6, d: 3, color: 0xffb703 },
+
+                // Interior T-Junction Rounding Pillars
+                { type: 'pillar', x: -29, z: -18, radius: 2.2, color: 0xf72585 },
+                { type: 'pillar', x: 29, z: -18, radius: 2.2, color: 0xf72585 },
+                { type: 'pillar', x: -29, z: 18, radius: 2.2, color: 0xffb703 },
+                { type: 'pillar', x: 29, z: 18, radius: 2.2, color: 0xffb703 },
 
                 // Center Divider Passages
-                { type: 'wall', x: 0, z: -8, w: 2, h: 6, d: 18, color: 0x4cc9f0 },
-                { type: 'wall', x: 0, z: 8, w: 2, h: 6, d: 18, color: 0x4cc9f0 },
-                { type: 'wall', x: -12, z: 0, w: 16, h: 6, d: 2, color: 0x00f2fe },
-                { type: 'wall', x: 12, z: 0, w: 16, h: 6, d: 2, color: 0x00f2fe },
+                { type: 'wall', x: 0, z: -8, w: 3, h: 6, d: 20, color: 0x4cc9f0 },
+                { type: 'wall', x: 0, z: 8, w: 3, h: 6, d: 20, color: 0x4cc9f0 },
+                { type: 'wall', x: -12, z: 0, w: 20, h: 6, d: 3, color: 0x00f2fe },
+                { type: 'wall', x: 12, z: 0, w: 20, h: 6, d: 3, color: 0x00f2fe },
+
+                // Center T-Junction Rounding Pillars
+                { type: 'pillar', x: 0, z: -17, radius: 2.2, color: 0x4cc9f0 },
+                { type: 'pillar', x: 0, z: 17, radius: 2.2, color: 0x4cc9f0 },
+                { type: 'pillar', x: -20, z: 0, radius: 2.2, color: 0x00f2fe },
+                { type: 'pillar', x: 20, z: 0, radius: 2.2, color: 0x00f2fe },
 
                 // Sentinel Moving Hazards patrolling maze corridors
                 { type: 'moving', x: -8, z: -25, radius: 2.2, color: 0xff0055, speed: 1.2 },
@@ -506,6 +524,25 @@ class FlyRoverApp {
                 }
             }
         });
+
+        // 4. Biological Corner Anti-Stuck & Reverse Escape Saccade Reflex
+        const moveDistThisFrame = this.flyPos.distanceTo(this.lastPos);
+        const isNearObstacle = (this.brain.v_left_eye > 0.18 || this.brain.v_right_eye > 0.18);
+
+        if (moveDistThisFrame < 0.06 && isNearObstacle) {
+            this.stuckTimer = (this.stuckTimer || 0) + delta;
+        } else {
+            this.stuckTimer = Math.max(0, (this.stuckTimer || 0) - delta * 2.0);
+        }
+
+        if (this.stuckTimer > 0.5) {
+            // High Corner Pressure Trap -> Trigger Emergency Reverse Thrust & 135°~180° Spin Escape
+            const backDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw);
+            this.flyPos.add(backDir.multiplyScalar(4.0 * delta));
+            const turnSign = Math.random() > 0.5 ? 1 : -1;
+            this.flyYaw += turnSign * (Math.PI * 0.75 + (Math.random() - 0.5));
+            this.stuckTimer = 0.0;
+        }
 
         // Apply transformations to 3D Fly Mesh & Ground Target Shadow Ring
         this.flyModel.group.position.copy(this.flyPos);
