@@ -15,6 +15,7 @@
 | **Module 2: 視覺輸入預處理** | ✅ 完成 | 支援 Webcam、影片檔與動態合成視覺刺激。將畫面轉換為灰階並降採樣至 **32x32 小眼陣列**，計算絕對動作差分 ($|I_{\text{curr}} - I_{\text{prev}}|$)。 |
 | **Module 3: 神經矩陣計算引擎** | ✅ 完成 | 實現乙醯膽鹼 (ACh: $+1.0$) 興奮性與 GABA/谷氨酸 (GABA/Glu: $-1.0$) 抑制性極性映射。使用向量化點積與 Leaky 時序整合膜電位計算。 |
 | **Module 4: 實時視覺化與遙測** | ✅ 完成 | 終端機動態進度條 (`█` 密度映射) 及 OpenCV 3 面板 GUI 視窗（32x32 網膜視圖、運動熱圖 `COLORMAP_JET`、膜電位動態示波器）。 |
+| **Module 5: 雙觸角嗅覺趨向迴路** | ✅ 完成 | neuPrint ORN-PN-LHON 嗅覺 Connectome 矩陣 (`olfactory_connectome_matrix.csv`)，實現雙觸角 3D 空間氣味擴散場 (Odor Plume Gradient)、Tropotaxis 差分轉向與 Surge 直奔食物衝刺。 |
 | **Web App: 3D 果蠅自走車** | ✅ 完成 | Three.js 3D 果蠅自走車 (`fly_rover.html`)，擬真 3D 果蠅模型與雙翅獨立拍打、左右眼+仰角雷射視角、高對比棋盤地板、**3D 立體迷宮 (3D Labyrinth)**、**懸空過街橋 (Overpass Gate)**、**低牆 (Low Barrier)** 與 **隱形天花板 (Invisible Ceiling Limit)**。 |
 
 ---

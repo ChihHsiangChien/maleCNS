@@ -666,7 +666,7 @@ class FlyRoverApp {
         for (let i = this.foodTargets.length - 1; i >= 0; i--) {
             const food = this.foodTargets[i];
             const dist = this.flyPos.distanceTo(food.group.position);
-            if (dist < 2.5) {
+            if (dist < 3.8) {
                 // Food Eaten! Trigger Green Particle Splash Effect
                 this._createFoodParticleSplash(food.group.position.clone());
                 this.scene.remove(food.group);
@@ -719,46 +719,129 @@ class FlyRoverApp {
         this.particleSplashes.push({ group: group, particles: particles, life: 1.0 });
     }
 
+    _calculateAntennaOdors() {
+        const leftAntennaPos = this.flyPos.clone().add(
+            new THREE.Vector3(-0.4, 0.4, 0.7).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw)
+        );
+        const rightAntennaPos = this.flyPos.clone().add(
+            new THREE.Vector3(0.4, 0.4, 0.7).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw)
+        );
+
+        let leftOdor = 0.0;
+        let rightOdor = 0.0;
+        let odorPitch = 0.0;
+        let closestDist = Infinity;
+
+        let totalWeight = 0.0;
+        let weightedDY = 0.0;
+        let weightedDX = 0.0;
+        let weightedDZ = 0.0;
+
+        for (const food of this.foodTargets) {
+            if (!food.group) continue;
+            const distL = leftAntennaPos.distanceTo(food.group.position);
+            const distR = rightAntennaPos.distanceTo(food.group.position);
+
+            const intL = 1.0 / (1.0 + 0.002 * (distL * distL));
+            const intR = 1.0 / (1.0 + 0.002 * (distR * distR));
+
+            leftOdor += intL;
+            rightOdor += intR;
+
+            const distAvg = (distL + distR) * 0.5;
+            if (distAvg < closestDist) {
+                closestDist = distAvg;
+            }
+
+            const odorWeight = Math.pow(intL + intR, 2.0);
+            const dx = food.group.position.x - this.flyPos.x;
+            const dz = food.group.position.z - this.flyPos.z;
+            const dy = food.group.position.y - this.flyPos.y;
+
+            weightedDX += dx * odorWeight;
+            weightedDZ += dz * odorWeight;
+            weightedDY += dy * odorWeight;
+            totalWeight += odorWeight;
+        }
+
+        let targetDY = 0.0;
+        let targetDXZ = 1.0;
+        if (totalWeight > 0.0001) {
+            targetDY = weightedDY / totalWeight;
+            const avgDX = weightedDX / totalWeight;
+            const avgDZ = weightedDZ / totalWeight;
+            targetDXZ = Math.max(0.5, Math.hypot(avgDX, avgDZ));
+        }
+
+        if (closestDist < 60.0 && Math.abs(targetDY) > 0.2) {
+            // Compute exact 3D pitch elevation angle required to climb/descend to food altitude
+            const reqAngle = Math.atan2(targetDY, targetDXZ); // in radians
+            const maxPitchClamp = closestDist < 20.0 ? 1.25 : 0.85;
+            odorPitch = Math.max(-maxPitchClamp, Math.min(maxPitchClamp, reqAngle));
+        }
+
+        return { leftOdor, rightOdor, odorPitch, closestDist, targetDY };
+    }
+
     _updatePhysics(delta) {
         this._updateObstaclesAndFood(delta);
         this._castEyeRays();
+        const odors = this._calculateAntennaOdors();
 
+        const simDelta = delta * (this.simSpeedMultiplier || 0.65);
         let wLeft = 1.0;
         let wRight = 1.0;
 
         if (this.isAutoPilot) {
-            // Run Connectome Neural Matrix Engine in 3D (Dual LC4 Avoidance + LC10 Foraging)
+            // Run Connectome Neural Matrix Engine in 3D (LC4 Avoidance + LC10 Vision + LHON Olfactory Chemotaxis)
             const res = this.brain.update(
                 this.leftRaySignals, this.rightRaySignals, this.topRaySignals, this.botRaySignals,
-                this.leftFoodSignals, this.rightFoodSignals, this.topFoodSignals, this.botFoodSignals
+                this.leftFoodSignals, this.rightFoodSignals, this.topFoodSignals, this.botFoodSignals,
+                odors.leftOdor, odors.rightOdor, odors.odorPitch
             );
             wLeft = res.wingPowerLeft;
             wRight = res.wingPowerRight;
-            this.flyPitch += res.pitchDrive * delta * 1.5;
+
+            // Direct responsive 3D pitch tracking for altitude climbing toward food
+            if (res.isForaging && Math.abs(odors.odorPitch) > 0.04) {
+                // Adaptive lerp rate based on distance: fast pitch reaction when climbing
+                const lerpRate = Math.min(0.45, 0.18 + (1.0 / Math.max(1.0, odors.closestDist || 10)) * 2.5);
+                this.flyPitch = THREE.MathUtils.lerp(this.flyPitch, odors.odorPitch, lerpRate);
+            } else {
+                this.flyPitch += res.pitchDrive * simDelta * 0.7;
+                this.flyPitch *= 0.96; // Apply pitch dampening ONLY when NOT tracking odor pitch!
+            }
         } else {
             // Manual Arrow/WASD/QE key drive
-            if (this.keys.ArrowLeft || this.keys.a) wLeft = 0.3, wRight = 2.0;
-            if (this.keys.ArrowRight || this.keys.d) wLeft = 2.0, wRight = 0.3;
-            if (this.keys.ArrowUp || this.keys.w) wLeft = 1.8, wRight = 1.8;
+            if (this.keys.ArrowLeft || this.keys.a) wLeft = 0.3, wRight = 1.8;
+            if (this.keys.ArrowRight || this.keys.d) wLeft = 1.8, wRight = 0.3;
+            if (this.keys.ArrowUp || this.keys.w) wLeft = 1.5, wRight = 1.5;
             if (this.keys.ArrowDown || this.keys.s) wLeft = 0.4, wRight = 0.4;
-            if (this.keys.q || this.keys.Q) this.flyPitch += 1.8 * delta;
-            if (this.keys.e || this.keys.E) this.flyPitch -= 1.8 * delta;
+            if (this.keys.q || this.keys.Q) this.flyPitch += 1.2 * simDelta;
+            if (this.keys.e || this.keys.E) this.flyPitch -= 1.2 * simDelta;
+            this.flyPitch *= 0.96;
         }
 
-        this.flyPitch *= 0.96;
-        this.flyPitch = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, this.flyPitch));
+        this.flyPitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, this.flyPitch));
 
-        const forwardThrust = (wLeft + wRight) * 0.5 * 12.0;
-        const turnRate = (wRight - wLeft) * 2.8;
+        // Smooth biological movement speeds
+        const forwardThrust = (wLeft + wRight) * 0.5 * 4.8;
+        const turnRate = (wRight - wLeft) * 1.4;
 
-        this.flyYaw += turnRate * delta;
+        this.flyYaw += turnRate * simDelta;
+
+        // Enhanced vertical climbing thrust when fly needs to climb to elevated food
+        let verticalScale = 1.0;
+        if (this.isAutoPilot && odors.targetDY > 0.5 && odors.closestDist < 25.0) {
+            verticalScale = 1.45; // 45% boost to vertical climb velocity when ascending towards food
+        }
 
         const speedXZ = forwardThrust * Math.cos(this.flyPitch);
-        const speedY = forwardThrust * Math.sin(this.flyPitch);
+        const speedY = forwardThrust * Math.sin(this.flyPitch) * verticalScale;
 
-        this.flyPos.x += Math.sin(this.flyYaw) * speedXZ * delta;
-        this.flyPos.z += Math.cos(this.flyYaw) * speedXZ * delta;
-        this.flyPos.y += speedY * delta;
+        this.flyPos.x += Math.sin(this.flyYaw) * speedXZ * simDelta;
+        this.flyPos.z += Math.cos(this.flyYaw) * speedXZ * simDelta;
+        this.flyPos.y += speedY * simDelta;
 
         // Ceiling & Ground Constraints
         if (this.flyPos.y >= this.ceilingY - 2.0) {
@@ -797,22 +880,10 @@ class FlyRoverApp {
                     const dHalf = (obs.d || 2) * 0.5 + flyRadius;
                     const dx = this.flyPos.x - obs.x;
                     const dz = this.flyPos.z - obs.z;
-
                     if (Math.abs(dx) < wHalf && Math.abs(dz) < dHalf) {
-                        const overlapX = wHalf - Math.abs(dx);
-                        const overlapZ = dHalf - Math.abs(dz);
-                        let wallNormalX = 0, wallNormalZ = 0;
-
-                        if (overlapX < overlapZ) {
-                            wallNormalX = dx > 0 ? 1 : -1;
-                            this.flyPos.x += dx > 0 ? overlapX : -overlapX;
-                        } else {
-                            wallNormalZ = dz > 0 ? 1 : -1;
-                            this.flyPos.z += dz > 0 ? overlapZ : -overlapZ;
-                        }
-
-                        const targetTurnAngle = Math.atan2(wallNormalZ, wallNormalX);
-                        this.flyYaw = THREE.MathUtils.lerp(this.flyYaw, targetTurnAngle, 0.45);
+                        this.flyYaw += Math.PI * 0.5;
+                        this.flyPos.x += Math.sin(this.flyYaw) * 1.5;
+                        this.flyPos.z += Math.cos(this.flyYaw) * 1.5;
                     }
                 } else if (obs.type === 'gate') {
                     const wHalf = (obs.w || 20) * 0.5 + flyRadius;
@@ -852,14 +923,14 @@ class FlyRoverApp {
         const isNearObstacle = (this.brain.v_left_eye > 0.18 || this.brain.v_right_eye > 0.18);
 
         if (moveDistThisFrame < 0.06 && isNearObstacle) {
-            this.stuckTimer = (this.stuckTimer || 0) + delta;
+            this.stuckTimer = (this.stuckTimer || 0) + simDelta;
         } else {
-            this.stuckTimer = Math.max(0, (this.stuckTimer || 0) - delta * 2.0);
+            this.stuckTimer = Math.max(0, (this.stuckTimer || 0) - simDelta * 2.0);
         }
 
         if (this.stuckTimer > 0.5) {
             const backDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw);
-            this.flyPos.add(backDir.multiplyScalar(4.0 * delta));
+            this.flyPos.add(backDir.multiplyScalar(4.0 * simDelta));
             const turnSign = Math.random() > 0.5 ? 1 : -1;
             this.flyYaw += turnSign * (Math.PI * 0.75 + (Math.random() - 0.5));
             this.stuckTimer = 0.0;
@@ -875,7 +946,7 @@ class FlyRoverApp {
             this.groundShadowRing.rotation.y = this.flyYaw;
         }
 
-        this.flyModel.updateWings(delta, wLeft, wRight, this.flyPitch);
+        this.flyModel.updateWings(simDelta, wLeft, wRight, this.flyPitch);
 
         const moveDist = this.flyPos.distanceTo(this.lastPos);
         this.flightDistance += moveDist;
@@ -895,33 +966,45 @@ class FlyRoverApp {
     }
 
     _updateCamera() {
+        if (!this.smoothLookTarget) {
+            this.smoothLookTarget = this.flyPos.clone();
+        }
+
         if (this.activeCamMode === 'follow') {
-            const offset = new THREE.Vector3(0, 4.5, -9.0);
-            offset.applyAxisAngle(new THREE.Vector3(1, 0, 0), -this.flyPitch * 0.5);
+            const offset = new THREE.Vector3(0, 4.2, -9.5);
+            offset.applyAxisAngle(new THREE.Vector3(1, 0, 0), -this.flyPitch * 0.4);
             offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw);
 
             const targetCamPos = this.flyPos.clone().add(offset);
-            this.camera.position.lerp(targetCamPos, 0.1);
+            this.camera.position.lerp(targetCamPos, 0.045);
 
-            const lookTarget = this.flyPos.clone().add(new THREE.Vector3(0, 1.2, 3.0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw));
-            this.camera.lookAt(lookTarget);
+            const rawLookTarget = this.flyPos.clone().add(
+                new THREE.Vector3(0, 1.0, 3.0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw)
+            );
+            this.smoothLookTarget.lerp(rawLookTarget, 0.06);
+            this.camera.lookAt(this.smoothLookTarget);
         } else if (this.activeCamMode === 'cockpit') {
             const eyeOffset = new THREE.Vector3(0, 0.4, 0.75);
             eyeOffset.applyAxisAngle(new THREE.Vector3(1, 0, 0), -this.flyPitch);
             eyeOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw);
 
-            this.camera.position.copy(this.flyPos.clone().add(eyeOffset));
+            const targetCamPos = this.flyPos.clone().add(eyeOffset);
+            this.camera.position.lerp(targetCamPos, 0.2);
 
             const lookDir = new THREE.Vector3(0, 0, 15.0);
             lookDir.applyAxisAngle(new THREE.Vector3(1, 0, 0), -this.flyPitch);
             lookDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.flyYaw);
 
-            this.camera.lookAt(this.flyPos.clone().add(lookDir));
+            const rawLookTarget = this.flyPos.clone().add(lookDir);
+            this.smoothLookTarget.lerp(rawLookTarget, 0.15);
+            this.camera.lookAt(this.smoothLookTarget);
         } else if (this.activeCamMode === 'top') {
-            this.camera.position.set(this.flyPos.x, this.ceilingY + 15, this.flyPos.z + 0.1);
-            this.camera.lookAt(this.flyPos);
+            const targetCamPos = new THREE.Vector3(this.flyPos.x, this.ceilingY + 15, this.flyPos.z + 0.1);
+            this.camera.position.lerp(targetCamPos, 0.06);
+            this.smoothLookTarget.lerp(this.flyPos, 0.06);
+            this.camera.lookAt(this.smoothLookTarget);
         } else if (this.activeCamMode === 'orbit') {
-            this.orbitControls.target.copy(this.flyPos);
+            this.orbitControls.target.lerp(this.flyPos, 0.08);
             this.orbitControls.update();
         }
     }
@@ -956,6 +1039,37 @@ class FlyRoverApp {
                 const hR = Math.max(10, Math.floor(Math.max(threatR, foodR) * 100));
                 barR.style.height = `${hR}%`;
                 barR.style.backgroundColor = foodR > threatR ? '#70e000' : (threatR > 0.5 ? 'var(--danger-red)' : 'var(--accent-cyan)');
+            }
+        }
+
+        // Antennal Olfactory Chemotaxis Gauges
+        const fillOlL = document.getElementById('olfFillL');
+        const numOlL = document.getElementById('olfNumL');
+        const fillOlR = document.getElementById('olfFillR');
+        const numOlR = document.getElementById('olfNumR');
+        const modeOl = document.getElementById('olfModeLabel');
+
+        const vOlL = this.brain.v_olf_left || 0;
+        const vOlR = this.brain.v_olf_right || 0;
+
+        if (fillOlL && numOlL) {
+            fillOlL.style.width = `${Math.min(100, (vOlL / 2.0) * 100)}%`;
+            numOlL.innerText = vOlL.toFixed(2);
+        }
+        if (fillOlR && numOlR) {
+            fillOlR.style.width = `${Math.min(100, (vOlR / 2.0) * 100)}%`;
+            numOlR.innerText = vOlR.toFixed(2);
+        }
+        if (modeOl) {
+            if (this.brain.v_left_eye > 0.3 || this.brain.v_right_eye > 0.3) {
+                modeOl.innerText = 'Avoidance (LC4)';
+                modeOl.style.color = 'var(--danger-red)';
+            } else if (vOlL > 0.1 || vOlR > 0.1) {
+                modeOl.innerText = 'Tropotaxis & Surge (ORN-PN-LHON)';
+                modeOl.style.color = '#70e000';
+            } else {
+                modeOl.innerText = 'Search / Cruising';
+                modeOl.style.color = 'var(--accent-cyan)';
             }
         }
 
@@ -1041,10 +1155,39 @@ class FlyRoverApp {
             });
         }
 
+        const speedSelect = document.getElementById('speedSelect');
+        if (speedSelect) {
+            speedSelect.value = '0.65';
+            speedSelect.addEventListener('change', (e) => {
+                this.simSpeedMultiplier = parseFloat(e.target.value) || 0.65;
+            });
+        }
+
+        const toggleSidebarBtn = document.getElementById('btnToggleSidebar');
+        const container = document.querySelector('.app-container');
+        if (toggleSidebarBtn && container) {
+            toggleSidebarBtn.addEventListener('click', () => {
+                this.isSidebarCollapsed = !this.isSidebarCollapsed;
+                if (this.isSidebarCollapsed) {
+                    container.classList.add('sidebar-collapsed');
+                    toggleSidebarBtn.innerText = '📊 Show Panels';
+                    toggleSidebarBtn.classList.add('active');
+                } else {
+                    container.classList.remove('sidebar-collapsed');
+                    toggleSidebarBtn.innerText = '🖥️ Fullscreen View';
+                    toggleSidebarBtn.classList.remove('active');
+                }
+                setTimeout(() => this.onWindowResize(), 100);
+            });
+        }
+
         const camBtns = document.querySelectorAll('.cam-btn');
         camBtns.forEach(btn => {
+            if (btn.id === 'btnToggleSidebar') return;
             btn.addEventListener('click', (e) => {
-                camBtns.forEach(b => b.classList.remove('active'));
+                camBtns.forEach(b => {
+                    if (b.id !== 'btnToggleSidebar') b.classList.remove('active');
+                });
                 btn.classList.add('active');
                 this.activeCamMode = btn.dataset.cam;
             });

@@ -235,10 +235,39 @@ if (Math.abs(e_yaw) < 0.05 && centerThreat > 0.8) {
 
 ---
 
+---
+
+## 👃 10. 雙觸角嗅覺神經矩陣與 3D 空間氣味擴散場 (ORN-PN-LHON Olfactory Connectome & Chemotaxis)
+
+除了 LC4 視網膜避障與 LC10 近距離視覺尋找，本專案完整建構了果蠅經典的 **雙觸角嗅覺神經迴路 (Antennal Olfactory System)**，解決遠距離或盲區無法靠視覺搜尋綠色食物的痛點：
+
+### 1. 3D 空間氣味擴散場 (3D Inverse-Square Odor Plume Diffusion)
+空間座標 $\mathbf{p}$ 處的氣味濃度強度 $C_{\text{total}}(\mathbf{p})$ 係由場景中所有綠色食物目標 $\mathbf{p}_{\text{food}, k}$ 共同貢獻：
+
+$$C_{\text{total}}(\mathbf{p}) = \sum_{k} \frac{S_0}{1.0 + \gamma \cdot \|\mathbf{p} - \mathbf{p}_{\text{food}, k}\|^2}$$
+
+其中 $S_0 = 1.0$ 為源頭氣味強度，$\gamma = 0.005$ 為空間擴散衰減係數。
+
+### 2. 雙觸角差分採樣 (Bilateral Antennal Tropotaxis)
+果蠅頭部左觸角 $\mathbf{p}_{\text{ant\_L}}$ 與右觸角 $\mathbf{p}_{\text{ant\_R}}$ 分別採樣濃度：
+$$S_{\text{olf\_L}} = C_{\text{total}}(\mathbf{p}_{\text{ant\_L}}), \quad S_{\text{olf\_R}} = C_{\text{total}}(\mathbf{p}_{\text{ant\_R}})$$
+
+### 3. ORN $\rightarrow$ AL PN $\rightarrow$ LHON 神經電位計算
+載入 neuPrint `olfactory_connectome_matrix.csv` 數據，計算側角輸出神經元 (LHON) 膜電位：
+$$V_{\text{olf\_L}}^{(t)} = \tau \cdot V_{\text{olf\_L}}^{(t-1)} + \max\left(0, W_{\text{ACh}} \cdot S_{\text{olf\_L}} - W_{\text{GABA}} \cdot S_{\text{olf\_R}}\right)$$
+$$V_{\text{olf\_R}}^{(t)} = \tau \cdot V_{\text{olf\_R}}^{(t-1)} + \max\left(0, W_{\text{ACh}} \cdot S_{\text{olf\_R}} - W_{\text{GABA}} \cdot S_{\text{olf\_L}}\right)$$
+
+### 4. 運動分層整合 (Subsumption Architecture & Surge Motion)
+- **Tropotaxis 差分轉向**：當兩側電位不等時，產生轉向轉速，引導果蠅朝高氣味濃度側轉向。
+- **Surge 前進衝刺**：當總氣味強度 $V_{\text{olf\_L}} + V_{\text{olf\_R}} > 0.05$ 時，雙翅同時增加推力，加速直奔食物源頭。
+
+---
+
 ## 🚀 9. 運算效能優勢總結
 
-- **極致輕量**：$1,024 \times 32$ 矩陣僅包含 $32,768$ 個浮點數參數，記憶體佔用小於 **250 KB**。
+- **極致輕量**：$1,024 \times 32$ 視覺矩陣與 $64$ 條嗅覺 Connectome 矩陣總記憶體佔用小於 **300 KB**。
 - **毫秒級推論**：單次矩陣點積耗時 $< 0.1\text{ ms}$，整體迴路可在微控制器與瀏覽器端達到 **>1,000 FPS** 的超高頻推論速度。
+
 
 
 

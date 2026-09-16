@@ -212,6 +212,128 @@ class ConnectomeFetcher:
         logger.info(f"Generated {len(df)} synthetic LC10 STMD connections.")
         return df
 
+    def fetch_olfactory_connectome(self) -> pd.DataFrame:
+        """
+        Queries neuPrint HTTP Cypher API for connections to Olfactory Projection Neurons (PN)
+        and Lateral Horn Output Neurons (LHON).
+        """
+        if not self.token:
+            logger.warning("No neuPrint API token provided. Falling back to synthetic olfactory matrix generation.")
+            return self.generate_olfactory_synthetic_matrix()
+
+        url = f"{self.server}/api/custom/custom"
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+        
+        cypher = f"""
+        MATCH (u:Neuron)-[conn:ConnectsTo]->(v:Neuron)
+        WHERE (v.type CONTAINS 'PN' OR v.type CONTAINS 'LHON' OR u.type CONTAINS 'ORN') AND conn.weight >= {self.min_weight}
+        RETURN u.bodyId AS source_id,
+               u.type AS source_type,
+               v.bodyId AS target_id,
+               v.type AS target_type,
+               conn.weight AS weight,
+               coalesce(u.predictedNt, u.statusLabel, 'ACh') AS nt
+        ORDER BY conn.weight DESC
+        LIMIT 2500
+        """
+
+        payload = {
+            "cypher": cypher,
+            "dataset": self.dataset
+        }
+
+        try:
+            logger.info(f"Querying neuPrint server for Olfactory (ORN-PN-LHON) neurons...")
+            response = requests.post(url, headers=headers, json=payload, timeout=15)
+            response.raise_for_status()
+            
+            data = response.json()
+            columns = data.get("columns", [])
+            rows = data.get("data", [])
+            
+            if not rows:
+                logger.warning("neuPrint query returned empty result for Olfactory neurons. Using synthetic matrix.")
+                return self.generate_olfactory_synthetic_matrix()
+            
+            df = pd.DataFrame(rows, columns=columns)
+            logger.info(f"Successfully retrieved {len(df)} olfactory connections from neuPrint.")
+            df = self._assign_retinotopic_coordinates(df)
+            return df
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch olfactory data from neuPrint: {e}. Falling back to synthetic matrix.")
+            return self.generate_olfactory_synthetic_matrix()
+
+    def generate_olfactory_synthetic_matrix(self) -> pd.DataFrame:
+        """
+        Generates a synthetic bio-inspired connectome matrix for Olfactory Neurons (ORN -> AL PN -> LHON).
+        Bilateral antennal input features strong cholinergic (ACh) food attraction valence
+        and GABAergic lateral inhibition for differential concentration comparison (Tropotaxis & Surge).
+        """
+        logger.info("Generating synthetic Olfactory (ORN-PN-LHON) connectome matrix...")
+        records = []
+        target_id_l = 999050  # Left LHON
+        target_id_r = 999051  # Right LHON
+        
+        # 1. Left Antennal Lobe Projection Neurons (DM1_PN, VA1v_PN)
+        for i in range(16):
+            source_id = 300000 + i
+            # Primary Excitatory connection to Left LHON
+            records.append({
+                "source_id": source_id,
+                "source_type": f"ORN_DM1_L_{i}",
+                "target_id": target_id_l,
+                "target_type": "LHON_food_attract_L",
+                "weight": random.randint(18, 30),
+                "nt": "ACh",
+                "spatial_x": i,
+                "spatial_y": 0
+            })
+            # Cross-lateral inhibitory connection to Right LHON (Tropotaxis differential contrast)
+            records.append({
+                "source_id": source_id,
+                "source_type": f"LN_GABA_L_{i}",
+                "target_id": target_id_r,
+                "target_type": "LHON_food_attract_R",
+                "weight": random.randint(5, 12),
+                "nt": "GABA",
+                "spatial_x": i,
+                "spatial_y": 1
+            })
+
+        # 2. Right Antennal Lobe Projection Neurons (DM1_PN, VA1v_PN)
+        for i in range(16):
+            source_id = 300016 + i
+            # Primary Excitatory connection to Right LHON
+            records.append({
+                "source_id": source_id,
+                "source_type": f"ORN_DM1_R_{i}",
+                "target_id": target_id_r,
+                "target_type": "LHON_food_attract_R",
+                "weight": random.randint(18, 30),
+                "nt": "ACh",
+                "spatial_x": i + 16,
+                "spatial_y": 0
+            })
+            # Cross-lateral inhibitory connection to Left LHON (Tropotaxis differential contrast)
+            records.append({
+                "source_id": source_id,
+                "source_type": f"LN_GABA_R_{i}",
+                "target_id": target_id_l,
+                "target_type": "LHON_food_attract_L",
+                "weight": random.randint(5, 12),
+                "nt": "GABA",
+                "spatial_x": i + 16,
+                "spatial_y": 1
+            })
+
+        df = pd.DataFrame(records)
+        logger.info(f"Generated {len(df)} synthetic Olfactory (ORN-PN-LHON) connections.")
+        return df
+
     def save_matrix(self, df: pd.DataFrame, output_path: str = "lc4_connectome_matrix.csv") -> str:
         """
         Persists the connectome matrix to a CSV file.
@@ -228,4 +350,8 @@ if __name__ == "__main__":
     
     df_lc10 = fetcher.generate_lc10_synthetic_matrix()
     fetcher.save_matrix(df_lc10, "lc10_connectome_matrix.csv")
+
+    df_olf = fetcher.fetch_olfactory_connectome()
+    fetcher.save_matrix(df_olf, "olfactory_connectome_matrix.csv")
+
 

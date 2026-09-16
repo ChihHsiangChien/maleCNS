@@ -44,12 +44,13 @@
                     <span>CONNECTOME ACTIVE: DUAL LC4 (AVOID) + LC10 STMD (FORAGE) CIRCUIT</span>
                 </div>
 
-                <!-- Camera View Switcher -->
+                <!-- Camera View Switcher & Sidebar Toggle -->
                 <div class="camera-bar">
                     <button class="cam-btn active" data-cam="follow">Follow Cam</button>
                     <button class="cam-btn" data-cam="cockpit">Eye Cam</button>
                     <button class="cam-btn" data-cam="top">Top View</button>
                     <button class="cam-btn" data-cam="orbit">Free Orbit</button>
+                    <button id="btnToggleSidebar" class="cam-btn" style="background:rgba(0, 242, 254, 0.15); color:var(--accent-cyan); border:1px solid var(--accent-cyan);">🖥️ Fullscreen View</button>
                 </div>
             </div>
 
@@ -66,6 +67,12 @@
                 </div>
 
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <select id="speedSelect" class="btn" style="background:rgba(8, 12, 22, 0.9); color:var(--accent-gold); border-color:var(--accent-gold); padding:7px 12px; font-weight:700; cursor:pointer;">
+                        <option value="0.35">🐢 Slow Motion (0.35x)</option>
+                        <option value="0.65" selected>🍃 Smooth Bio Speed (0.65x)</option>
+                        <option value="1.0">⚡ Normal Speed (1.0x)</option>
+                        <option value="1.5">🚀 Fast Flight (1.5x)</option>
+                    </select>
                     <select id="mazeSelect" class="btn" style="background:rgba(8, 12, 22, 0.9); color:var(--accent-cyan); border-color:var(--accent-cyan); padding:7px 12px; font-weight:700; cursor:pointer;">
                         <option value="maze3d" selected>🏰 3D Volumetric Labyrinth (3D 立體迷宮)</option>
                         <option value="maze">🏰 2D Planar Maze (平面迷宮)</option>
@@ -144,6 +151,33 @@
                             </script>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- Antennal Olfactory Chemotaxis Meter -->
+            <section class="panel-card">
+                <div class="panel-title">
+                    <span>👃</span> Antennal Olfactory Chemotaxis (ORN-PN-LHON)
+                </div>
+                <div class="wing-gauges">
+                    <div class="gauge-row">
+                        <span class="gauge-name" style="color:#70e000;">LEFT ANTENNA</span>
+                        <div class="gauge-track">
+                            <div class="gauge-fill" id="olfFillL" style="background:#70e000; width:0%;"></div>
+                        </div>
+                        <span class="gauge-num" id="olfNumL" style="color:#70e000;">0.00</span>
+                    </div>
+
+                    <div class="gauge-row">
+                        <span class="gauge-name" style="color:#38b000;">RIGHT ANTENNA</span>
+                        <div class="gauge-track">
+                            <div class="gauge-fill" id="olfFillR" style="background:#38b000; width:0%;"></div>
+                        </div>
+                        <span class="gauge-num" id="olfNumR" style="color:#38b000;">0.00</span>
+                    </div>
+                </div>
+                <div style="margin-top:6px; font-size:0.75rem; color:#88a0c0; text-align:right;">
+                    Mode: <span id="olfModeLabel" style="color:#70e000; font-weight:bold;">Search</span>
                 </div>
             </section>
 
