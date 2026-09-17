@@ -44,15 +44,17 @@ class TestNeuralSimulation(unittest.TestCase):
         """Tests Module 2 frame acquisition, retinal downscaling, and motion extraction."""
         pipeline = VisualInputPipeline(source="synthetic", grid_size=32)
         
-        raw_frame, ret_gray, motion = pipeline.read_frame()
+        raw_frame, ret_gray, motion, heatmaps = pipeline.read_frame()
         self.assertIsNotNone(raw_frame)
         self.assertEqual(ret_gray.shape, (32, 32))
         self.assertEqual(motion.shape, (32, 32))
         self.assertEqual(ret_gray.dtype, np.uint8)
         self.assertEqual(motion.dtype, np.float32)
+        self.assertIn("L1_ON", heatmaps)
+        self.assertIn("T4a", heatmaps)
         
         # Second frame should calculate motion diff
-        raw_frame2, ret_gray2, motion2 = pipeline.read_frame()
+        raw_frame2, ret_gray2, motion2, heatmaps2 = pipeline.read_frame()
         self.assertTrue(np.all(motion2 >= 0.0) and np.all(motion2 <= 1.0))
         
         pipeline.release()
