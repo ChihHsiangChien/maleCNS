@@ -1,0 +1,139 @@
+【Drosophila Connectome 專欄 #2】解密果蠅的晶片級視覺神經：Optic Lobe 三段式視葉演算法與 Connectome 遙測工作台
+
+在上一篇文章中，我們介紹了美國 Janelia 研究團隊發表的 MaleCNS 成年雄性果蠅完整中樞神經系統圖譜，並解釋了如何將突觸連結轉化為「狀態向量乘上突觸矩陣（$V_{t+1} = V_t \cdot M$）」的演算法。
+
+然而，當一隻果蠅在空中以每秒幾十公分的姿態高速飛行、或是面對敵害突襲時，牠的大腦是如何在短短幾毫秒之內，將眼睛接收到的動態光影轉化為精確的避障與導航動作？
+
+這一切的秘密，都藏在果蠅視網膜後方的「視葉（Optic Lobe）」與 downstream Connectome 神經迴路中。
+
+今天我們要深入介紹專案的核心視覺處理架構——**Optic Lobe & Connectome Neural Workbench（果蠅視葉與神經矩陣遙測工作台）**。這是一套結合了生物神經解剖學、Reichardt 運動相關器、22,875 條 neuPrint 真實突觸矩陣極性計算，以及 12 Mode 視網膜拓撲遙測儀與 4 通道動作電位脈衝示波器的完整實時模擬系統。
+
+---
+
+### 一、 視葉的三段式視覺路徑與 Reichardt 運動相關器 (Optic Lobe Circuitry)
+
+果蠅的視網膜由約 800 到 1,024 個獨立的小眼（Ommatidia）組成。在我們的模擬器中，將視覺畫面降採樣為 $32 \times 32$ 的網膜格子。
+
+光訊號進入大腦後，並非直接送往高階決策區，而是經過視葉（Optic Lobe）的 **Stage 1 (Lamina)** $\rightarrow$ **Stage 2 (Medulla)** $\rightarrow$ **Stage 3 (Lobula)** 三段式層層提取動態特徵：
+
+```text
+【Stage 1: Lamina 光感測與邊緣分流】
+  R1 - R6 (32x32 灰階光感) ---> L1 (ON 通道: ΔI > 0 變亮邊緣)
+                         ---> L2/L3 (OFF 通道: ΔI < 0 變暗邊緣)
+
+【Stage 2: Medulla 時間延遲緩衝區 (Delay Buffers)】
+  L1 ON 通道  ---> Mi1 / Mi9 (慢訊號: t - Δt) vs Tm3 / Mi4 (快訊號: t)
+  L2 OFF 通道 ---> Tm9 / Tm4 (慢訊號: t - Δt) vs Tm1 / Tm2 (快訊號: t)
+
+【Stage 3: Lobula 方向選擇性 Reichardt 運動相關器】
+  T4a - d (ON 運動)  : Mi1_slow (空間位移) x Tm3_fast (4 方向: 右, 左, 上, 下)
+  T5a - d (OFF 運動) : Tm9_slow (空間位移) x Tm1_fast (4 方向: 右, 左, 上, 下)
+
+【Stage 4: Connectome 終端神經元與運動輸出】
+  T4 / T5 -> LC4  (碰撞避障 Looming) ──> 雙翅閃避推進
+  T4      -> LC11 (小物件 STMD 追蹤) ──> 高增益微小目標感測
+  T4 / T5 -> HS   (水平偏航 Yaw)      ──> 左右轉向馬達控制
+  T4 / T5 -> VS   (垂直俯仰 Pitch)    ──> 俯仰與飛行高度控制
+```
+
+#### 1. Stage 1: Lamina (光感測與邊緣分流)
+- **R1-R6 感光細胞**：接收 $32 \times 32$ 原始灰階光強。
+- **L1 / L2 / L3 邊緣分流**：計算光強隨時間的微分 $\Delta I = I(t) - I(t-\Delta t)$。
+  - **L1 (ON 通道)**：只保留 $\Delta I > 0$ 的變亮邊緣，發送「光源靠近 / 物體離開」訊號。
+  - **L2/L3 (OFF 通道)**：只保留 $\Delta I < 0$ 的變暗邊緣，發送「陰影覆蓋 / 物體靠近」訊號。
+
+#### 2. Stage 2: Medulla (時間延遲緩衝區 Delay Buffers)
+視覺運動偵測的核心關鍵是「時間差」。
+Medulla 層的神經元分化出快訊號與慢訊號通路：
+- ON 通道中，**Mi1 / Mi9** 扮演「延遲記憶單元（慢訊號 $t - \Delta t$）」，而 **Tm3 / Mi4** 則是「即時反應單元（快訊號 $t$）」。
+- OFF 通道中，**Tm9 / Tm4** 為慢訊號，**Tm1 / Tm2** 為快訊號。
+
+#### 3. Stage 3: Lobula (Reichardt 運動相關器)
+到了 Lobula 層，**T4 (ON 運動)** 與 **T5 (OFF 運動)** 神經元將相鄰小眼的快慢訊號進行交叉相乘乘積算子（Cross-Correlation）：
+$$C(x, t) = I_{\text{slow}}(x, t-\Delta t) \times I_{\text{fast}}(x+\Delta x, t)$$
+透過這種算子，T4 與 T5 神經元獲得了極強的「方向選擇性（Direction Selectivity）」，能夠精確分辨物體是往「右、左、上、下」哪個方向移動！
+
+#### 4. Stage 4: Top-Down Connectome 突觸矩陣計算
+T4 與 T5 的 8 方向運動訊號，接著匯入由 neuPrint 解析出的 4,000 條真實突觸連結矩陣（$1,024 \times 32$ 維度）：
+- 乙醯膽鹼（ACh）突觸投射：$+1.0$ 興奮性權重。
+- GABA / 谷氨酸（Glutamate）突觸投射：$-1.0$ 抑制性權重。
+最終輸出給四大功能神經通道：**LC4**（碰撞避障）、**LC11**（小目標追蹤）、**HS**（水平偏航）、**VS**（垂直俯仰）。
+
+---
+
+### 二、 12 Mode 視網膜拓撲熱圖遙測儀 (Retinotopic Heatmap Telemetry)
+
+果蠅視覺系統的一大特色是**視網膜拓撲映射（Retinotopy）**——即神經元在解剖結構上的空間排列，與果蠅眼中的物理視野位置是一一對應的。
+
+為了讓研究者與開發者能夠「直觀看見果蠅大腦正在想什麼」，神經模擬工作台提供了 **12 種視網膜拓撲熱圖切換模式**。無論是在 Python OpenCV 視窗還是 HTML5 Web UI 中，只需按下熱鍵即可即時切換視角的熱圖表現：
+
+| 熱鍵 | 遙測熱圖名稱 | 生物解剖與工程意義 |
+| :---: | :--- | :--- |
+| **`1`** | **`R1-R6`** | 原始 $32 \times 32$ 灰階光感測像素陣列 |
+| **`2`** | **`L1_ON`** | 變亮邊緣提取網格 ($\Delta I > 0$) |
+| **`3`** | **`L2_OFF`** | 變暗邊緣提取網格 ($\Delta I < 0$) |
+| **`4`** | **`Mi1_slow`** | ON 通道時間延遲緩衝區 (慢訊號 $t-\Delta t$) |
+| **`5`** | **`Tm3_fast`** | ON 通道即時訊號 (快訊號 $t$) |
+| **`6`** | **`T4_all`** | T4 亮邊緣全方向 Reichardt 運動向量強度 |
+| **`7`** | **`T5_all`** | T5 暗邊緣全方向 Reichardt 運動向量強度 |
+| **`8`** | **`LC4_map`** | **LC4 碰撞避障神經元視網膜空間拓撲熱圖**（當陰影急速擴大時強烈發光） |
+| **`9`** | **`LC11_map`**| **LC11 小物件追蹤神經元視網膜空間拓撲熱圖**（對微小移動光點產生高增益反應） |
+| **`0`** | **`HS_map`** | **HS 水平偏航神經元視網膜拓撲熱圖**（偵測左/右水平光流） |
+| **`a`** | **`VS_map`** | **VS 垂直俯仰神經元視網膜拓撲熱圖**（偵測上/下垂直光流） |
+| **`g`** | **`8-Dir Grid`**| **$2 \times 4$ 八方向全覽網格**（包含 T4a-d 與 T5a-d 8 個獨立方向向量） |
+
+按下熱鍵時，畫面會從全景視野即時切換到特定層級神經細胞的空間興奮分佈，宛如給果蠅的大腦做實時核磁共振（fMRI）！
+
+---
+
+### 三、 4 通道示波器與 ⚡ FIRE! 動作電位放電標籤
+
+在神經生物學中，個體神經元的膜電位（Membrane Potential $V_m$）平時維持在靜止電位。當累積的興奮性突觸訊號超過臨界閾值（Spike Threshold）時，神經元會瞬間產生一次「動作電位脈衝（Action Potential / Spike）」。
+
+Optic Lobe Workbench 內建了 **4 通道實時動作電位示波器**，同步繪製四大運動通道的電位曲線：
+
+1. **LC4 通道 (Looming Avoidance)**：綠色波形。監測視野中天敵或障礙物逼近的碰撞威脅。
+2. **LC11 通道 (Small Target STMD)**：黃色波形。具備 8 倍生物突觸高增益，專門補捉僅佔 1-2 個像素的小昆蟲或小物件。
+3. **HS 通道 (Horizontal System)**：藍色波形。代表果蠅頭部/機身的左右偏航（Yaw）角速度。
+4. **VS 通道 (Vertical System)**：紫/紅色波形。代表果蠅俯仰（Pitch）與上下升降的動態。
+
+#### ⚡ FIRE! 脈衝觸發機制
+當某通道的神經電位突破放電閾值時：
+- 示波器對應波形會產生閃爍高亮。
+- 遙測儀頂部會即時彈出 **`⚡ FIRE!`** 動作電位放電標籤。
+- 在 3D 模擬器中，這代表神經元正式下達了肌肉收縮指令（例如 LC4 觸發雙翅反向強烈拍打以實施緊急避障；LC11 觸發對齊目標發射雷射/追逐）。
+
+---
+
+### 四、 實體世界與數位生物學的碰撞：WebCam 與生物刺激測試模式
+
+為了驗證這套演算法是否真能運作，Workbench 支援兩種輸入模式：
+
+#### 1. WebCam 實體攝影機輸入 (`--source 0`)
+你可以將筆電或 USB 鏡頭連線至模擬器。當你在鏡頭前揮手、拿著小物體晃動，或是用手掌快速撲向鏡頭（模擬天敵捕食）時：
+- 在鏡頭前快速靠近的手掌會立刻誘發 **LC4 視網膜熱圖爆紅** 並觸發 **`LC4 FIRE!`** 脈衝。
+- 在鏡頭遠端移動的小筆尖會精確誘發 **LC11 熱圖點狀反應**。
+
+#### 2. 標準生物學測試刺激模式 (`--stimulus`)
+如果沒有攝影機，模擬器內建了 4 種視覺神經學經典的標竿測試動態：
+
+- **`--stimulus stmd_dot` (LC11 測試)**：一顆微小的亮點穿過視野。由於小點通過時只觸發極少數像素，完美避開了側向抑制（Lateral Inhibition），觸發 LC11 的強烈放電。
+- **`--stimulus looming` (LC4 測試)**：視野中央出現急速膨脹的黑洞陰影（Looming Sensitivity），模擬小鳥撲向果蠅的視覺景象，爆發 LC4 逃逸脈衝。
+- **`--stimulus yaw_sweep` (HS 測試)**：垂直光柵由左向右掃過視野，誘發 HS 偏航旋轉訊號。
+- **`--stimulus pitch_sweep` (VS 測試)**：水平光柵由上向下掃過視野，誘發 VS 俯仰訊號。
+- **`--stimulus auto` (自動輪播)**：每 50 幀自動切換上述 4 種測試刺激，用於系統自動化測試。
+
+---
+
+### 結語：從神經圖譜到線上互動 Workbench
+
+透過將 MaleCNS 的真實 connectome 資料庫與 Stage 1-3 視葉 Reichardt 運動感測器結合，我們成功在網頁端與 Python 終端機上打造出這座 **Optic Lobe & Connectome Neural Workbench**。
+
+現在，您無需編譯 Python 或安裝龐大的神經科學套件，只需打開瀏覽器，連上 GitHub Pages，就能親眼看見果蠅視覺大腦在接收到光影變化時，神經元如何層層相扣、點亮視網膜拓撲熱圖，並發射出毫秒級的 `⚡ FIRE!` 動作電位。
+
+在下一篇文章中，我們將把這套神經遙測工作台輸出給 **3D 果蠅虛擬自走車 (Fruit Fly 3D Autonomous Rover)**，看牠如何在全物理模擬的 3D 立體迷宮中自主飛行與避障！
+
+---
+
+🌐 **GitHub Pages 線上神經遙測工作台**：[https://chihhsiangchien.github.io/maleCNS/neural_simulation.html](https://chihhsiangchien.github.io/maleCNS/neural_simulation.html)
+💻 **專案 GitHub 原始碼**：[https://github.com/ChihHsiangChien/maleCNS](https://github.com/ChihHsiangChien/maleCNS)
