@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fruit Fly Neural Space Invaders | 果蠅大腦 Space Invaders 街機遊戲</title>
+    <meta name="description" content="Space Invaders Arcade Game driven by Drosophila fruit fly visual motion and looming threat connectome brain neural network.">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        .nav-links {
+            display: flex;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            background: rgba(18, 26, 42, 0.8);
+            border: 1px solid rgba(64, 80, 110, 0.4);
+            color: #8a99ad;
+            padding: 8px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-btn:hover, .nav-btn.active {
+            border-color: #00f0ff;
+            color: #00f0ff;
+            background: rgba(0, 240, 255, 0.12);
+            box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+        }
+
+        .signal-indicator-bar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .signal-light {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #2a3447;
+            box-shadow: inset 0 0 4px #000;
+            transition: all 0.15s ease;
+        }
+
+        .signal-light.active-left {
+            background: #00f0ff;
+            box-shadow: 0 0 12px #00f0ff;
+        }
+
+        .signal-light.active-right {
+            background: #00ff66;
+            box-shadow: 0 0 12px #00ff66;
+        }
+
+        .signal-light.active-shoot {
+            background: #ff0055;
+            box-shadow: 0 0 12px #ff0055;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #1e293b;
+            transition: .3s;
+            border-radius: 24px;
+            border: 1px solid rgba(64, 80, 110, 0.5);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: #8a99ad;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: rgba(0, 240, 255, 0.3);
+            border-color: #00f0ff;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+            background-color: #00f0ff;
+            box-shadow: 0 0 8px #00f0ff;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- App Header & Navigation -->
+    <header class="header" style="width:100%; max-width:1400px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:24px;">
+        <div class="header-brand" style="text-align:left;">
+            <h1>Drosophila Connectome Space Invaders</h1>
+            <p>果蠅視網膜視覺 (32x32) 與 LC4 / LC11 神經迴路演化自動控制街機遊戲</p>
+        </div>
+
+        <nav class="nav-links">
+            <a href="index.html" class="nav-btn">
+                <span>🏠</span> Home Hub
+            </a>
+            <a href="neural_simulation.html" class="nav-btn">
+                <span>🧠</span> Neural Workbench
+            </a>
+            <a href="fly_rover.html" class="nav-btn">
+                <span>🪰</span> 3D Fruit Fly Rover
+            </a>
+            <a href="game.html" class="nav-btn active">
+                <span>👾</span> 2D Space Invaders
+            </a>
+        </nav>
+    </header>
+
+    <!-- Main Game Container -->
+    <div class="app-container">
+
+        <!-- Left: Game Arcade Screen -->
+        <section class="panel-card game-container">
+            <div class="panel-title">
+                <span>👾</span> 2D Space Invaders Game Canvas
+            </div>
+
+            <canvas id="gameCanvas" width="400" height="500"></canvas>
+
+            <!-- Game Control Bar -->
+            <div class="game-controls-bar">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <label class="switch">
+                        <input type="checkbox" id="modeToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                    <span id="modeLabel" style="font-weight:700; font-size:0.88rem; color:var(--accent-cyan);">
+                        Fly Brain Auto-Pilot
+                    </span>
+                </div>
+
+                <div style="display:flex; gap:8px;">
+                    <button id="btnRestart" class="btn">🔄 Restart</button>
+                    <button id="btnTrain" class="btn btn-primary">⚡ Auto-Train Brain</button>
+                </div>
+            </div>
+
+            <!-- Brain Motor Output Signal Lights -->
+            <div class="signal-indicator-bar">
+                <span style="font-size:0.75rem; color:var(--text-secondary); font-family:'JetBrains Mono';">MOTOR COMMANDS:</span>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <div class="signal-light" id="lightLeft"></div>
+                    <span style="font-size:0.75rem;">LEFT (ACh)</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <div class="signal-light" id="lightShoot"></div>
+                    <span style="font-size:0.75rem;">SHOOT (LC11)</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <div class="signal-light" id="lightRight"></div>
+                    <span style="font-size:0.75rem;">RIGHT (ACh)</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right: Neural Telemetry & GA Dashboard -->
+        <section class="panel-card">
+            <div class="panel-title">
+                <span>🧠</span> Fruit Fly Retinotopic Brain Telemetry
+            </div>
+
+            <!-- Evolutionary GA Stats -->
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; text-align:center;">
+                <div style="background:rgba(0,0,0,0.4); padding:8px; border-radius:6px; border:1px solid var(--border-color);">
+                    <div style="font-size:1.2rem; font-weight:800; color:var(--accent-cyan);" id="statScore">0</div>
+                    <div style="font-size:0.7rem; color:var(--text-secondary);">SCORE</div>
+                </div>
+                <div style="background:rgba(0,0,0,0.4); padding:8px; border-radius:6px; border:1px solid var(--border-color);">
+                    <div style="font-size:1.2rem; font-weight:800; color:var(--accent-green);" id="statGen">1</div>
+                    <div style="font-size:0.7rem; color:var(--text-secondary);">GEN</div>
+                </div>
+                <div style="background:rgba(0,0,0,0.4); padding:8px; border-radius:6px; border:1px solid var(--border-color);">
+                    <div style="font-size:1.2rem; font-weight:800; color:var(--accent-yellow);" id="statGenome">1/10</div>
+                    <div style="font-size:0.7rem; color:var(--text-secondary);">GENOME</div>
+                </div>
+                <div style="background:rgba(0,0,0,0.4); padding:8px; border-radius:6px; border:1px solid var(--border-color);">
+                    <div style="font-size:1.2rem; font-weight:800; color:var(--accent-magenta);" id="statBest">0</div>
+                    <div style="font-size:0.7rem; color:var(--text-secondary);">BEST</div>
+                </div>
+            </div>
+
+            <!-- Brain Canvases Grid -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;">
+                <div>
+                    <div style="font-size:0.8rem; font-weight:700; color:var(--accent-cyan); margin-bottom:4px;">
+                        Retinal View (32x32)
+                    </div>
+                    <canvas id="retinaCanvas" width="200" height="200" style="width:100%; border:1px solid var(--border-color); border-radius:6px; background:#000;"></canvas>
+                </div>
+
+                <div>
+                    <div style="font-size:0.8rem; font-weight:700; color:var(--accent-magenta); margin-bottom:4px;">
+                        T4/T5 Motion Vector
+                    </div>
+                    <canvas id="motionCanvas" width="200" height="200" style="width:100%; border:1px solid var(--border-color); border-radius:6px; background:#000;"></canvas>
+                </div>
+            </div>
+
+            <!-- Oscilloscope Waveform -->
+            <div style="margin-top:12px;">
+                <div style="font-size:0.8rem; font-weight:700; color:var(--accent-green); margin-bottom:4px;">
+                    Cumulative Membrane Potential $V_m$ Oscilloscope
+                </div>
+                <canvas id="oscilloscopeCanvas" width="400" height="120" style="width:100%; border:1px solid var(--border-color); border-radius:6px; background:#05070a;"></canvas>
+            </div>
+
+            <p style="font-size:0.8rem; color:var(--text-secondary); line-height:1.4; margin-top:10px;">
+                果蠅大腦以 32x32 視網膜光強陣列感應敵機降落與子彈軌跡，當子彈於下半視野 (y > 16) 逼近時，觸發 LC4 (Looming Avoidance) 興奮性極速閃避；當敵機於中央垂直線對齊時，觸發 LC11 (Target Centering) 發射雷射槍。
+            </p>
+        </section>
+
+    </div>
+
+    <!-- JS Scripts -->
+    <script src="connectome_brain.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

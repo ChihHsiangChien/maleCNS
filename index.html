@@ -2,13 +2,265 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=fly_rover.html">
-    <title>Fruit Fly 3D Autonomous Rover | 果蠅神經自走車避障模擬器</title>
-    <script>
-        window.location.href = "fly_rover.html";
-    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drosophila Connectome Neural Simulation | 果蠅神經連接組仿生模擬系統</title>
+    <meta name="description" content="Fruit Fly Connectome Neural Simulation Suite hosted on GitHub Pages: 3D Autonomous Rover, Optic Lobe Retinal Workbench, and Space Invaders Arcade driven by Janelia male-cns real connectome matrix.">
+    <link rel="stylesheet" href="fly_rover.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        .hero-banner {
+            text-align: center;
+            max-width: 900px;
+            margin: 40px auto 30px auto;
+        }
+
+        .hero-banner h1 {
+            font-size: 2.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-gold), #ff0055);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 14px;
+            filter: drop-shadow(0 0 20px rgba(0, 240, 255, 0.4));
+        }
+
+        .hero-banner p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .badge-bar {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .badge {
+            background: rgba(18, 26, 42, 0.8);
+            border: 1px solid var(--border-color);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            font-family: 'JetBrains Mono', monospace;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .hub-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            max-width: 1300px;
+            width: 100%;
+            margin: 20px auto 50px auto;
+        }
+
+        @media (max-width: 1000px) {
+            .hub-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .hub-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 20px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hub-card:hover {
+            transform: translateY(-6px);
+            border-color: var(--accent-cyan);
+            box-shadow: 0 12px 40px rgba(0, 240, 255, 0.25);
+        }
+
+        .card-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .card-desc {
+            font-size: 0.92rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .card-features {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: #d1d5db;
+        }
+
+        .card-features li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-features li::before {
+            content: "✓";
+            color: var(--accent-cyan);
+            font-weight: 800;
+        }
+
+        .launch-btn {
+            background: linear-gradient(135deg, #00b4d8, #0077b6);
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 700;
+            text-align: center;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            display: block;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 14px rgba(0, 180, 216, 0.4);
+        }
+
+        .launch-btn:hover {
+            background: linear-gradient(135deg, #90e0ef, #00b4d8);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.6);
+            transform: scale(1.02);
+        }
+    </style>
 </head>
 <body>
-    <p>Redirecting to <a href="fly_rover.html">Fruit Fly 3D Autonomous Rover Simulation</a>...</p>
+
+    <!-- Header & App Navigation -->
+    <header class="header">
+        <div class="header-brand">
+            <h1>Drosophila Connectome Simulation Portal</h1>
+            <p>美國 Janelia 官方 neuPrint (`male-cns:v1.0`) 果蠅神經圖譜與視葉運動感測系統</p>
+        </div>
+
+        <nav class="nav-links">
+            <a href="index.html" class="nav-btn active">
+                <span>🏠</span> Home Hub
+            </a>
+            <a href="neural_simulation.html" class="nav-btn">
+                <span>🧠</span> Neural Workbench
+            </a>
+            <a href="fly_rover.html" class="nav-btn">
+                <span>🪰</span> 3D Fruit Fly Rover
+            </a>
+            <a href="game.html" class="nav-btn">
+                <span>👾</span> 2D Space Invaders
+            </a>
+        </nav>
+    </header>
+
+    <main style="width:100%; max-width:1400px; display:flex; flex-direction:column; align-items:center;">
+
+        <!-- Hero Section -->
+        <section class="hero-banner">
+            <h1>Fruit Fly Connectome Live Web Suite</h1>
+            <p>
+                整合由上而下 (Top-Down) 逆向追溯之 4 大運動輸出通路 (LC4, LC11, HS, VS)，完全以純 HTML5/JavaScript 精確復刻果蠅視網膜 4 段式視覺與連接組路徑 (Lamina → Medulla → Lobula → Connectome Matrix) 與 8 方向 Reichardt 運動相關器，提供可以直接透過 GitHub Pages 在線上展示與互動體驗的神經模擬系統。
+            </p>
+
+            <div class="badge-bar">
+                <div class="badge"><span>🧬</span> DATASET: Janelia male-cns:v1.0</div>
+                <div class="badge"><span>⚡</span> SYNAPSES: 4,000+ Real Connections</div>
+                <div class="badge"><span>👁️</span> RETINA: 32x32 Ommatidia Array</div>
+                <div class="badge"><span>🚀</span> RUNTIME: 60 FPS HTML5 / Three.js</div>
+            </div>
+        </section>
+
+        <!-- 3 Feature Apps Hub Grid -->
+        <section class="hub-grid">
+
+            <!-- Card 1: Neural Workbench -->
+            <div class="hub-card">
+                <div>
+                    <div class="card-icon">🧠</div>
+                    <div class="card-title">Optic Lobe & Connectome Neural Workbench</div>
+                    <div class="card-desc">
+                        實時神經矩陣計算與 12 種視網膜拓撲熱圖遙測儀。支援 4 通道 (LC4, LC11, HS, VS) 動作電位脈衝示波器與生物刺激測試模式。
+                    </div>
+                    <ul class="card-features">
+                        <li>Stage 1-3 視葉路徑與 Reichardt 運動相關器</li>
+                        <li>12 Mode 熱圖切換 (熱鍵 1-9, 0, a, g)</li>
+                        <li>Multi-Channel Oscilloscope & ⚡ FIRE! 脈衝</li>
+                        <li>WebCam 攝影機與鼠標互動測試刺激</li>
+                    </ul>
+                </div>
+                <a href="neural_simulation.html" class="launch-btn" style="background:linear-gradient(135deg, #00f0ff, #0077b6);">
+                    🚀 Launch Neural Workbench
+                </a>
+            </div>
+
+            <!-- Card 2: 3D Autonomous Rover -->
+            <div class="hub-card">
+                <div>
+                    <div class="card-icon">🪰</div>
+                    <div class="card-title">3D Fruit Fly Autonomous Rover</div>
+                    <div class="card-desc">
+                        Three.js 3D 擬真果蠅模型與雙翅獨立拍打推進系統，在 3D 立體迷宮 (3D Labyrinth) 與過街天橋中進行立體飛行避障與氣味趨向 (Chemotaxis)。
+                    </div>
+                    <ul class="card-features">
+                        <li>擬真 3D 果蠅生物模型與獨立拍打翅膀</li>
+                        <li>LC4 碰撞避障 + LC10 小物件採集神經網絡</li>
+                        <li>3D 立體迷宮 (Labyrinth) & 懸空天橋橋洞</li>
+                        <li>雙觸角 3D 氣味擴散場 (Tropotaxis + Surge)</li>
+                    </ul>
+                </div>
+                <a href="fly_rover.html" class="launch-btn" style="background:linear-gradient(135deg, #70e000, #38b000);">
+                    🚀 Launch 3D Fruit Fly Rover
+                </a>
+            </div>
+
+            <!-- Card 3: Space Invaders Arcade -->
+            <div class="hub-card">
+                <div>
+                    <div class="card-icon">👾</div>
+                    <div class="card-title">Space Invaders Neural Arcade</div>
+                    <div class="card-desc">
+                        結合 2D 經典街機遊戲與演化遺傳演算法 (GA)，由果蠅視網膜 32x32 視角自動追蹤敵機中心與 LC4 閃避敵方彈幕。
+                    </div>
+                    <ul class="card-features">
+                        <li>果蠅視網膜視覺 (32x32 Ommatidia)</li>
+                        <li>LC4 閃避彈幕 + LC11 垂直發射雷射槍</li>
+                        <li>演化遺傳演算法 (Genetic Algorithm Training)</li>
+                        <li>動態進度條與視網膜動作熱圖示波器</li>
+                    </ul>
+                </div>
+                <a href="game.html" class="launch-btn" style="background:linear-gradient(135deg, #ff0055, #b3003b);">
+                    🚀 Launch Space Invaders Arcade
+                </a>
+            </div>
+
+        </section>
+
+    </main>
+
 </body>
 </html>

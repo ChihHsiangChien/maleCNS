@@ -24,6 +24,33 @@
 
 本專案精確復刻果蠅視覺神經解剖學路徑：
 
+```mermaid
+flowchart LR
+    subgraph Stage1["Stage 1: Lamina (視網膜光感測)"]
+        R["R1-R6 灰階陣列 (32x32)"] --> L1["L1 (ON 通道: ΔI > 0)"]
+        R --> L2["L2/L3 (OFF 通道: ΔI < 0)"]
+    end
+
+    subgraph Stage2["Stage 2: Medulla (時間延遲緩衝區)"]
+        L1 --> Mi1["Mi1 / Mi9 (慢訊號: t - Δt)"]
+        L1 --> Tm3["Tm3 / Mi4 (快訊號: t)"]
+        L2 --> Tm9["Tm9 / Tm4 (慢訊號: t - Δt)"]
+        L2 --> Tm1["Tm1 / Tm2 (快訊號: t)"]
+    end
+
+    subgraph Stage3["Stage 3: Lobula (8方向 Reichardt 相關器)"]
+        Mi1 & Tm3 --> T4["T4a-d (ON 運動: 右, 左, 上, 下)"]
+        Tm9 & Tm1 --> T5["T5a-d (OFF 運動: 右, 左, 上, 下)"]
+    end
+
+    subgraph Stage4["Stage 4: Connectome Matrix (終端神經元與運動輸出)"]
+        T4 & T5 --> LC4["LC4 (碰撞避障) ──> 雙翅閃避推進"]
+        T4 --> LC11["LC11 (STMD 小物件) ──> 對齊發射雷射"]
+        T4 & T5 --> HS["HS (水平 System) ──> 偏航 Yaw 控制"]
+        T4 & T5 --> VS["VS (垂直 System) ──> 俯仰 Pitch 控制"]
+    end
+```
+
 ```text
 【Stage 1: Lamina 光感測與邊緣分流】
   R1 - R6 (32x32 灰階) ---> L1 (ON 通道: ΔI > 0 變亮邊緣)
@@ -36,6 +63,12 @@
 【Stage 3: Lobula 方向選擇性 Reichardt 相關器】
   T4a - d (ON 運動)  : Mi1_slow (空間位移) x Tm3_fast (4 Cardinal Directions: 右, 左, 上, 下)
   T5a - d (OFF 運動) : Tm9_slow (空間位移) x Tm1_fast (4 Cardinal Directions: 右, 左, 上, 下)
+
+【Stage 4: Top-Down Connectome 終端神經元輸出】
+  T4 / T5 -> LC4  (ACh: +1.0 Excitatory / GABA: -1.0 Inhibitory) -> Looming Avoidance
+  T4      -> LC11 (High Synaptic Gain 8x) -> Small Target STMD Tracking
+  T4 / T5 -> HS   (Yaw Optical Flow Differential) -> Yaw Steering Motor Output
+  T4 / T5 -> VS   (Pitch Optical Flow Differential) -> Pitch Altitude Motor Output
 ```
 
 ---
@@ -61,11 +94,25 @@
 
 ---
 
-## 🌐 3D 虛擬果蠅自走車線上展示 (GitHub Pages Live Demo)
+## 🌐 GitHub Pages 線上展示應用程式 (GitHub Pages Live Demo Suite)
 
-本專案將果蠅大腦視網膜運動感測與神經迴路移植至 JavaScript，使用者無需安裝任何環境即可透過瀏覽器線上體驗 3D 立體飛行避障：
+本專案已將完整 Python 果蠅神經模擬器 (視葉 3 段式視覺路徑 + 多通道 Connectome 突觸矩陣計算 + 12 種視網膜熱圖遙測儀) 100% 移植至 JavaScript，使用者無需安裝任何 Python 或 OpenCV 環境即可透過瀏覽器線上體驗：
 
-🌐 **線上模擬器展示網址**：**[https://chihhsiangchien.github.io/maleCNS/](https://chihhsiangchien.github.io/maleCNS/)**
+🌐 **GitHub Pages 專案 Portal 主頁**：**[https://chihhsiangchien.github.io/maleCNS/](https://chihhsiangchien.github.io/maleCNS/)**
+
+1. 🧠 **神經模擬與視網膜遙測工作台 (`neural_simulation.html`)**：**[https://chihhsiangchien.github.io/maleCNS/neural_simulation.html](https://chihhsiangchien.github.io/maleCNS/neural_simulation.html)**
+   - 3 段式視葉 Reichardt 運動模型 (Lamina $\rightarrow$ Medulla $\rightarrow$ Lobula)
+   - 多通道 LC4, LC11, HS, VS Connectome 矩陣計算與極性映射 (ACh: $+1.0$, GABA: $-1.0$)
+   - 12 種視網膜物理拓撲熱圖動態切換 (按鍵 `1`~`9`, `0`, `a`, `g` 或 UI 按鈕)
+   - 4 通道實時動作電位放電示波器 (`⚡ FIRE!`)
+   - 支援 WebCam 實體攝影機、標準測試刺激與鼠標互動視角
+
+2. 🪰 **3D 果蠅虛擬自走車避障模擬器 (`fly_rover.html`)**：**[https://chihhsiangchien.github.io/maleCNS/fly_rover.html](https://chihhsiangchien.github.io/maleCNS/fly_rover.html)**
+   - Three.js 擬真 3D 果蠅生物模型與雙翅獨立拍打動畫
+   - 3D 立體迷宮 (3D Labyrinth)、懸空過街天橋與雙觸角 3D 氣味趨向 (Chemotaxis)
+
+3. 👾 **2D 果蠅大腦 Space Invaders 街機遊戲 (`game.html`)**：**[https://chihhsiangchien.github.io/maleCNS/game.html](https://chihhsiangchien.github.io/maleCNS/game.html)**
+   - 果蠅視網膜 32x32 視角感測與演化遺傳演算法 (GA) 自動駕駛 AI
 
 ---
 
@@ -76,7 +123,7 @@
    python server.py
    # 或 python -m http.server 8000
    ```
-2. 在瀏覽器開啟：**[http://localhost:8000](http://localhost:8000)** 或 **[http://localhost:8000/fly_rover.html](http://localhost:8000/fly_rover.html)**
+2. 在瀏覽器開啟：**[http://localhost:8000](http://localhost:8000)** 或 **[http://localhost:8000/neural_simulation.html](http://localhost:8000/neural_simulation.html)**
 
 ---
 
@@ -126,11 +173,20 @@ python main.py --token "您的_NEUPRINT_TOKEN" --fetch --source 0
 
 ```text
 maleCNS/
+├── index.html              # GitHub Pages 展示 Portal 主頁
+├── neural_simulation.html  # HTML5/JS 神經模擬器與視網膜遙測工作台 (Module 1-4 Web 版)
 ├── fly_rover.html          # 3D 果蠅自走車應用程式 Shell (Three.js 立體避障主頁面)
-├── fly_rover.css           # 3D 自走車賽博朋克玻璃擬物 HUD 樣式
+├── game.html               # 2D 果蠅大腦 Space Invaders 街機遊戲
+├── js/
+│   ├── optic_lobe_engine.js # Module 2 JS 版: 3 段式視葉路徑與 8 方向 Reichardt 運動相關器
+│   ├── neural_matrix_engine.js # Module 3 JS 版: 多通道 (LC4, LC11, HS, VS) Connectome 矩陣極性計算
+│   └── neural_telemetry_ui.js # Module 4 JS 版: 12 Mode 熱圖與 4 通道脈衝示波器遙測 UI
+├── fly_rover.css           # 3D 自走車與遙測儀賽博朋克玻璃擬物 HUD 樣式
 ├── fly_model.js            # Three.js 擬真 3D 果蠅生物模型與雙翅獨立拍打動畫
 ├── rover_brain.js          # 真實 lc4_connectome_matrix.csv 解析與 3D 立體避障神經計算
 ├── fly_rover.js            # Three.js 3D 賽博競技場、雷射眼陣列、6-DOF 物理與遙測面板
+├── connectome_brain.js     # Space Invaders 視網膜 32x32 演化神經大腦
+├── game.js                 # Space Invaders 街機遊戲引擎與 GA 訓練
 ├── connectome_matrix_math.md # 連接組矩陣數學推導、3D 控制理論與神經解剖學完整說明
 ├── connectome_fetcher.py   # Module 1: Top-Down 逆向 Cypher 檢索、NetworkX 圖合併與 Mi1 3D 錨點投影
 ├── visual_input.py         # Module 2: Lamina (L1/L2), Medulla (Mi1/Tm3), Lobula (T4/T5 Reichardt 8方向感測)
