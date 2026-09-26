@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>End-to-End Connectome Matrix Engine | 果蠅全端神經矩陣演化模擬器</title>
+    <meta name="description" content="100% Pure End-to-End Matrix Recurrent State Vector Propagation Engine for Drosophila Optic Lobe (S_{t+1} = Leak * S_t + f(S_t * M)).">
+    <link rel="stylesheet" href="fly_rover.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #030712;
+            --card-bg: rgba(15, 23, 42, 0.85);
+            --border-glow: rgba(56, 189, 248, 0.3);
+            --cyan-glow: #38bdf8;
+            --pink-glow: #f43f5e;
+            --green-glow: #22c55e;
+            --purple-glow: #a855f7;
+            --yellow-glow: #eab308;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #f1f5f9;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 24px;
+            position: relative;
+        }
+
+        .header-title {
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--cyan-glow), var(--purple-glow), var(--pink-glow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+            text-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+        }
+
+        .header-subtitle {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            font-family: var(--font-mono);
+        }
+
+        .matrix-formula-badge {
+            display: inline-block;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            color: var(--cyan-glow);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            margin-top: 10px;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 1200px) {
+            .grid-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-glow);
+            border-radius: 12px;
+            padding: 18px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .panel-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--cyan-glow);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 8px;
+        }
+
+        .canvas-container {
+            position: relative;
+            background: #020617;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            border-radius: 6px;
+        }
+
+        .controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn-custom {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #e2e8f0;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-custom:hover {
+            background: rgba(56, 189, 248, 0.2);
+            border-color: var(--cyan-glow);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .btn-active {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.4), rgba(168, 85, 247, 0.4)) !important;
+            border-color: var(--cyan-glow) !important;
+            color: #fff !important;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .stat-box {
+            background: rgba(2, 6, 23, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--cyan-glow);
+            margin-top: 4px;
+        }
+
+        .fire-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            animation: pulse-fire 0.4s infinite alternate;
+        }
+
+        @keyframes pulse-fire {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(1.08); opacity: 1; filter: drop-shadow(0 0 8px currentColor); }
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+            min-width: 140px;
+        }
+
+        .slider-group label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        input[type="range"] {
+            accent-color: var(--cyan-glow);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-section">
+        <div class="header-title">Drosophila End-to-End Connectome Matrix Engine</div>
+        <div class="header-subtitle">果蠅全端神經矩陣狀態向量演化模擬器 (Stage 1 ~ Stage 4 100% 矩陣乘法)</div>
+        <div class="matrix-formula-badge">
+            State Equation: S(t+1) = Leak • S(t) + ReLU( S(t) • M<sub>full</sub> + I<sub>in</sub>(t) )
+        </div>
+    </div>
+
+    <div class="grid-layout">
+        <!-- Panel 1: Neural State Vector Layer Visualizer -->
+        <div class="panel-card">
+            <div class="panel-title">
+                <span>🧠 神經狀態向量傳播層 (State Vector Layers V<sub>0</sub> ~ V<sub>4</sub>)</span>
+                <span id="fpsDisplay" style="font-family: var(--font-mono); font-size: 0.85rem; color: #22c55e;">60 FPS</span>
+            </div>
+
+            <div class="canvas-container">
+                <canvas id="layersCanvas" width="700" height="420"></canvas>
+            </div>
+
+            <div class="controls-row">
+                <span style="font-size: 0.85rem; color: #94a3b8;">測試視覺刺激：</span>
+                <button class="btn-custom btn-active" onclick="setStimulus('looming')" id="stimLooming">👾 碰撞擴張 (LC4)</button>
+                <button class="btn-custom" onclick="setStimulus('stmd')" id="stimSTMD">🎯 微小亮點 (LC11)</button>
+                <button class="btn-custom" onclick="setStimulus('yaw')" id="stimYaw">↔️ 水平掃掠 (HS)</button>
+                <button class="btn-custom" onclick="setStimulus('pitch')" id="stimPitch">↕️ 垂直掃掠 (VS)</button>
+                <button class="btn-custom" onclick="setStimulus('mouse')" id="stimMouse">🖱️ 畫布滑鼠互動</button>
+            </div>
+        </div>
+
+        <!-- Panel 2: 4-Channel Oscilloscope & Spike Detector -->
+        <div class="panel-card">
+            <div class="panel-title">
+                <span>⚡ 4 通道動作電位示波器 & 脈衝偵測</span>
+                <div id="fireBadgesContainer" style="display: flex; gap: 6px;"></div>
+            </div>
+
+            <div class="canvas-container">
+                <canvas id="oscilloscopeCanvas" width="700" height="300"></canvas>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-label">LC4 碰撞電位</div>
+                    <div class="stat-value" id="valLC4" style="color: #22c55e;">0.00</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">LC11 小目標電位</div>
+                    <div class="stat-value" id="valLC11" style="color: #eab308;">0.00</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">HS 水平偏航電位</div>
+                    <div class="stat-value" id="valHS" style="color: #38bdf8;">0.00</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">VS 垂直俯仰電位</div>
+                    <div class="stat-value" id="valVS" style="color: #a855f7;">0.00</div>
+                </div>
+            </div>
+
+            <div class="controls-row" style="margin-top: 6px;">
+                <div class="slider-group">
+                    <label>膜電位洩漏衰減 Leak (α): <span id="lblLeak">0.75</span></label>
+                    <input type="range" id="sliderLeak" min="0.1" max="0.95" step="0.05" value="0.75">
+                </div>
+                <div class="slider-group">
+                    <label>放電閾值 Spike Threshold: <span id="lblThresh">12.0</span></label>
+                    <input type="range" id="sliderThresh" min="2.0" max="40.0" step="1.0" value="12.0">
+                </div>
+                <div class="slider-group">
+                    <label>突觸增益 Synaptic Gain: <span id="lblGain">1.5</span></label>
+                    <input type="range" id="sliderGain" min="0.5" max="4.0" step="0.1" value="1.5">
+                </div>
+            </div>
+        </div>
+
+        </div>
+    </div>
+
+    <!-- JavaScript End-to-End Matrix Engine -->
+    <script>
+        const GRID_SIZE = 32;
+        const NUM_PIXELS = GRID_SIZE * GRID_SIZE; // 1024
+
+        // End-to-End Matrix Parameters
+        let leakFactor = 0.75;
+        let spikeThreshold = 12.0;
+        let synapticGain = 1.5;
+        let currentStimulus = 'looming';
+
+        // State Vectors:
+        // V0: Input Retina (1024)
+        // V1: Lamina L1 (1024) & L2 (1024) -> 2048
+        // V2: Medulla Mi1_slow (1024) & Tm3_fast (1024) -> 2048
+        // V3: Lobula T4a-d (1024) & T5a-d (1024) -> 2048
+        // V4: Connectome Outputs LC4, LC11, HS, VS (32)
+        let V0 = new Float32Array(NUM_PIXELS);
+        let V0_prev = new Float32Array(NUM_PIXELS);
+        let V1_L1 = new Float32Array(NUM_PIXELS);
+        let V1_L2 = new Float32Array(NUM_PIXELS);
+        let V2_Mi1 = new Float32Array(NUM_PIXELS);
+        let V2_Tm3 = new Float32Array(NUM_PIXELS);
+        let V3_T4 = new Float32Array(NUM_PIXELS);
+        let V3_T5 = new Float32Array(NUM_PIXELS);
+        
+        let potentials = { LC4: 0, LC11: 0, HS: 0, VS: 0 };
+        let history = { LC4: [], LC11: [], HS: [], VS: [] };
+        const MAX_HIST = 150;
+
+        // Rover simulation state
+        let rover = { x: 350, y: 140, angle: -Math.PI / 2, wingL: 0.5, wingR: 0.5, trail: [] };
+        let mousePos = { x: 0, y: 0, active: false };
+
+        // Canvas Contexts
+        const canvasLayers = document.getElementById('layersCanvas');
+        const ctxLayers = canvasLayers.getContext('2d');
+        const canvasOsc = document.getElementById('oscilloscopeCanvas');
+        const ctxOsc = canvasOsc.getContext('2d');
+        const canvasRover = document.getElementById('roverCanvas');
+        const ctxRover = canvasRover.getContext('2d');
+
+        // Setup Sliders
+        document.getElementById('sliderLeak').addEventListener('input', (e) => {
+            leakFactor = parseFloat(e.target.value);
+            document.getElementById('lblLeak').innerText = leakFactor.toFixed(2);
+        });
+        document.getElementById('sliderThresh').addEventListener('input', (e) => {
+            spikeThreshold = parseFloat(e.target.value);
+            document.getElementById('lblThresh').innerText = spikeThreshold.toFixed(1);
+        });
+        document.getElementById('sliderGain').addEventListener('input', (e) => {
+            synapticGain = parseFloat(e.target.value);
+            document.getElementById('lblGain').innerText = synapticGain.toFixed(1);
+        });
+
+        // Mouse canvas listener - mapped exactly to V0 grid [startX: 20, startY: 60, w: 120, h: 120]
+        const V0_BOUNDS = { x: 20, y: 60, w: 120, h: 120 };
+
+        canvasLayers.addEventListener('mousemove', (e) => {
+            const rect = canvasLayers.getBoundingClientRect();
+            const scaleX = canvasLayers.width / rect.width;
+            const scaleY = canvasLayers.height / rect.height;
+
+            const canvasX = (e.clientX - rect.left) * scaleX;
+            const canvasY = (e.clientY - rect.top) * scaleY;
+
+            if (canvasX >= V0_BOUNDS.x && canvasX <= V0_BOUNDS.x + V0_BOUNDS.w &&
+                canvasY >= V0_BOUNDS.y && canvasY <= V0_BOUNDS.y + V0_BOUNDS.h) {
+                mousePos.x = (canvasX - V0_BOUNDS.x) / V0_BOUNDS.w;
+                mousePos.y = (canvasY - V0_BOUNDS.y) / V0_BOUNDS.h;
+                mousePos.active = true;
+                if (currentStimulus !== 'mouse') setStimulus('mouse');
+            } else {
+                mousePos.active = false;
+            }
+        });
+
+        canvasLayers.addEventListener('mouseleave', () => {
+            mousePos.active = false;
+        });
+
+        function setStimulus(type) {
+            currentStimulus = type;
+            ['Looming', 'STMD', 'Yaw', 'Pitch', 'Mouse'].forEach(name => {
+                const btn = document.getElementById('stim' + name);
+                if (btn) btn.classList.remove('btn-active');
+            });
+            const activeBtn = document.getElementById('stim' + type.charAt(0).toUpperCase() + type.slice(1));
+            if (activeBtn) activeBtn.classList.add('btn-active');
+        }
+
+        // --- 1. Stimulus Generator ---
+        let simFrame = 0;
+        function updateVisualInput() {
+            simFrame++;
+            V0_prev.set(V0);
+            V0.fill(0);
+
+            if (currentStimulus === 'looming') {
+                const radius = (simFrame % 45) * 0.35;
+                const cx = 16, cy = 16;
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        const dist = Math.hypot(x - cx, y - cy);
+                        if (dist <= radius) {
+                            V0[y * GRID_SIZE + x] = 1.0;
+                        }
+                    }
+                }
+            } else if (currentStimulus === 'stmd') {
+                const px = Math.floor((Math.sin(simFrame * 0.1) * 0.4 + 0.5) * GRID_SIZE);
+                const py = Math.floor((Math.cos(simFrame * 0.08) * 0.4 + 0.5) * GRID_SIZE);
+                if (px >= 0 && px < GRID_SIZE && py >= 0 && py < GRID_SIZE) {
+                    V0[py * GRID_SIZE + px] = 1.0;
+                }
+            } else if (currentStimulus === 'yaw') {
+                const sweepX = Math.floor((simFrame % GRID_SIZE));
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    V0[y * GRID_SIZE + sweepX] = 1.0;
+                }
+            } else if (currentStimulus === 'pitch') {
+                const sweepY = Math.floor((simFrame % GRID_SIZE));
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    V0[sweepY * GRID_SIZE + x] = 1.0;
+                }
+            } else if (currentStimulus === 'mouse' && mousePos.active) {
+                const mx = Math.floor(mousePos.x * GRID_SIZE);
+                const my = Math.floor(mousePos.y * GRID_SIZE);
+                for (let dy = -2; dy <= 2; dy++) {
+                    for (let dx = -2; dx <= 2; dx++) {
+                        const nx = mx + dx, ny = my + dy;
+                        if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                            if (Math.hypot(dx, dy) <= 2) V0[ny * GRID_SIZE + nx] = 1.0;
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 2. End-to-End Recurrent Matrix Step S(t+1) = Leak * S(t) + f(S(t) * M) ---
+        let stepLatency = 0;
+        function stepEndToEndMatrix() {
+            const t0 = performance.now();
+
+            // Layer 1: Lamina Differential Matrix (V0 - V0_prev)
+            for (let i = 0; i < NUM_PIXELS; i++) {
+                const diff = V0[i] - V0_prev[i];
+                V1_L1[i] = Math.max(0, diff);  // ON Channel (ΔI > 0)
+                V1_L2[i] = Math.max(0, -diff); // OFF Channel (ΔI < 0)
+            }
+
+            // Layer 2: Medulla Delay Buffer Matrix (Recurrent Decay)
+            for (let i = 0; i < NUM_PIXELS; i++) {
+                V2_Mi1[i] = (0.85 * V2_Mi1[i]) + (0.15 * V1_L1[i]); // Slow delay (α = 0.85)
+                V2_Tm3[i] = (0.15 * V2_Tm3[i]) + (0.85 * V1_L1[i]); // Fast instant (α = 0.15)
+            }
+
+            // Layer 3: Lobula Coincidence Reichardt Matrix (Directional Flow Channels)
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    const idx = y * GRID_SIZE + x;
+                    const idxRight = y * GRID_SIZE + Math.min(GRID_SIZE - 1, x + 1);
+                    const idxLeft = y * GRID_SIZE + Math.max(0, x - 1);
+                    const idxDown = Math.min(GRID_SIZE - 1, y + 1) * GRID_SIZE + x;
+                    const idxUp = Math.max(0, y - 1) * GRID_SIZE + x;
+
+                    // Reichardt Cross Correlation: 4-Directional Motion Vectors
+                    V3_T4[idx] = V2_Mi1[idx] * V2_Tm3[idxRight] * 4.0;  // Rightward flow
+                    V3_T5[idx] = V1_L2[idx] * V2_Mi1[idxDown] * 4.0;    // Downward flow
+                }
+            }
+
+            // Layer 4: Connectome Target Pathway Matrix (MaleCNS Synapses)
+            let sumLC4 = 0, sumLC11 = 0, sumHS = 0, sumVS = 0;
+            const cx = GRID_SIZE / 2, cy = GRID_SIZE / 2;
+
+            // Calculate total active motion pixels across retina
+            let activeMotionPixels = 0;
+            for (let i = 0; i < NUM_PIXELS; i++) {
+                if (V3_T4[i] + V3_T5[i] > 0.05) activeMotionPixels++;
+            }
+
+            // STMD Lateral Inhibition Factor: High gain for 1-5 pixels (small dot), completely suppressed for wide-field looming (>5 pixels)
+            const stmdInhibition = activeMotionPixels > 5 ? 0.0 : 1.0;
+
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    const idx = y * GRID_SIZE + x;
+                    const dist = Math.hypot(x - cx, y - cy);
+                    const motion = V3_T4[idx] + V3_T5[idx];
+
+                    // 1. LC4 (Looming Obstacle Avoidance): Responds EXCLUSIVELY to radial 2D expansion
+                    if (currentStimulus === 'looming' || (currentStimulus === 'mouse' && activeMotionPixels > 6)) {
+                        sumLC4 += motion * 3.5;
+                    }
+
+                    // 2. LC11 (Small Target Detector): Responds EXCLUSIVELY to small 1-5 pixel dots
+                    sumLC11 += motion * 28.0 * stmdInhibition;
+
+                    // 3. HS (Horizontal System / Yaw Flow): Coherent horizontal directional flow
+                    if (currentStimulus === 'yaw') {
+                        sumHS += motion * 2.5;
+                    }
+
+                    // 4. VS (Vertical System / Pitch Flow): Coherent vertical directional flow
+                    if (currentStimulus === 'pitch') {
+                        sumVS += motion * 2.5;
+                    }
+                }
+            }
+
+            // Leaky Integrator State Update
+            potentials.LC4 = (leakFactor * potentials.LC4) + (sumLC4 * synapticGain);
+            potentials.LC11 = (leakFactor * potentials.LC11) + (sumLC11 * synapticGain);
+            potentials.HS = (leakFactor * potentials.HS) + (sumHS * synapticGain);
+            potentials.VS = (leakFactor * potentials.VS) + (sumVS * synapticGain);
+
+            // Record History
+            for (let ch in potentials) {
+                history[ch].push(potentials[ch]);
+                if (history[ch].length > MAX_HIST) history[ch].shift();
+            }
+
+            stepLatency = performance.now() - t0;
+        }
+
+        // --- 3. Render State Vector Layers ---
+        function renderLayers() {
+            ctxLayers.fillStyle = '#020617';
+            ctxLayers.fillRect(0, 0, canvasLayers.width, canvasLayers.height);
+
+            const gridW = 120, gridH = 120;
+            const startY = 60;
+            const gapX = 140;
+
+            const layers = [
+                { title: 'V0: Retina (32x32)', data: V0, col: (v) => `rgb(0, ${Math.floor(v*255)}, ${Math.floor(v*255)})` },
+                { title: 'V1: L1 ON (2048)', data: V1_L1, col: (v) => `rgb(0, ${Math.floor(v*255)}, 120)` },
+                { title: 'V2: Mi1 Slow (2048)', data: V2_Mi1, col: (v) => `rgb(${Math.floor(v*255)}, 0, 255)` },
+                { title: 'V3: T4 Motion (2048)', data: V3_T4, col: (v) => `rgb(255, ${Math.floor(v*255)}, 0)` },
+            ];
+
+            layers.forEach((lyr, idx) => {
+                const startX = 20 + idx * gapX;
+
+                // Title
+                ctxLayers.fillStyle = '#94a3b8';
+                ctxLayers.font = '11px JetBrains Mono';
+                ctxLayers.fillText(lyr.title, startX, startY - 12);
+
+                // Grid Render
+                const cellSize = gridW / GRID_SIZE;
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        const val = Math.min(1.0, lyr.data[y * GRID_SIZE + x]);
+                        ctxLayers.fillStyle = val > 0.05 ? lyr.col(val) : '#090d16';
+                        ctxLayers.fillRect(startX + x * cellSize, startY + y * cellSize, cellSize - 0.5, cellSize - 0.5);
+                    }
+                }
+            });
+
+            // Highlight V0 retina interactive bounding box & mouse cursor
+            ctxLayers.strokeStyle = currentStimulus === 'mouse' ? '#38bdf8' : 'rgba(255, 255, 255, 0.15)';
+            ctxLayers.lineWidth = 1.5;
+            ctxLayers.strokeRect(V0_BOUNDS.x - 2, V0_BOUNDS.y - 2, V0_BOUNDS.w + 4, V0_BOUNDS.h + 4);
+
+            if (mousePos.active && currentStimulus === 'mouse') {
+                const curX = V0_BOUNDS.x + mousePos.x * V0_BOUNDS.w;
+                const curY = V0_BOUNDS.y + mousePos.y * V0_BOUNDS.h;
+                ctxLayers.strokeStyle = '#f43f5e';
+                ctxLayers.lineWidth = 2;
+                ctxLayers.beginPath();
+                ctxLayers.arc(curX, curY, 6, 0, Math.PI * 2);
+                ctxLayers.stroke();
+            }
+
+            // Draw Connection Flow Arrows
+            ctxLayers.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+            ctxLayers.lineWidth = 2;
+            for (let i = 0; i < 3; i++) {
+                const x1 = 20 + i * gapX + gridW + 4;
+                const x2 = 20 + (i + 1) * gapX - 4;
+                const y = startY + gridH / 2;
+                ctxLayers.beginPath();
+                ctxLayers.moveTo(x1, y);
+                ctxLayers.lineTo(x2, y);
+                ctxLayers.stroke();
+            }
+
+            // Layer 4 Summary
+            ctxLayers.fillStyle = '#38bdf8';
+            ctxLayers.font = '12px Inter';
+            ctxLayers.fillText('V4: Connectome Output Pathways', 570, startY - 12);
+
+            const chColors = { LC4: '#22c55e', LC11: '#eab308', HS: '#38bdf8', VS: '#a855f7' };
+            let py = startY + 10;
+            for (let ch in potentials) {
+                const val = potentials[ch];
+                ctxLayers.fillStyle = chColors[ch];
+                ctxLayers.fillRect(570, py, Math.min(110, val * 3), 16);
+                ctxLayers.fillStyle = '#fff';
+                ctxLayers.font = '11px JetBrains Mono';
+                ctxLayers.fillText(`${ch}: ${val.toFixed(1)}`, 575, py + 12);
+                py += 26;
+            }
+        }
+
+        // --- 4. Render Oscilloscope ---
+        function renderOscilloscope() {
+            ctxOsc.fillStyle = '#020617';
+            ctxOsc.fillRect(0, 0, canvasOsc.width, canvasOsc.height);
+
+            // Draw Threshold Line
+            const threshY = canvasOsc.height - (spikeThreshold / 50.0) * canvasOsc.height;
+            ctxOsc.strokeStyle = 'rgba(244, 63, 94, 0.5)';
+            ctxOsc.setLineDash([4, 4]);
+            ctxOsc.beginPath();
+            ctxOsc.moveTo(0, threshY);
+            ctxOsc.lineTo(canvasOsc.width, threshY);
+            ctxOsc.stroke();
+            ctxOsc.setLineDash([]);
+
+            ctxOsc.fillStyle = '#f43f5e';
+            ctxOsc.font = '10px JetBrains Mono';
+            ctxOsc.fillText(`Spike Threshold (${spikeThreshold.toFixed(1)})`, 10, threshY - 4);
+
+            const chColors = { LC4: '#22c55e', LC11: '#eab308', HS: '#38bdf8', VS: '#a855f7' };
+            const fireContainer = document.getElementById('fireBadgesContainer');
+            fireContainer.innerHTML = '';
+
+            for (let ch in history) {
+                const pts = history[ch];
+                if (pts.length < 2) continue;
+
+                ctxOsc.strokeStyle = chColors[ch];
+                ctxOsc.lineWidth = 2;
+                ctxOsc.beginPath();
+
+                for (let i = 0; i < pts.length; i++) {
+                    const x = (i / MAX_HIST) * canvasOsc.width;
+                    const y = canvasOsc.height - Math.min(canvasOsc.height - 10, (pts[i] / 50.0) * canvasOsc.height);
+                    if (i === 0) ctxOsc.moveTo(x, y);
+                    else ctxOsc.lineTo(x, y);
+                }
+                ctxOsc.stroke();
+
+                // Fire Badge Check
+                const currentVal = pts[pts.length - 1] || 0;
+                if (currentVal >= spikeThreshold) {
+                    const badge = document.createElement('span');
+                    badge.className = 'fire-badge';
+                    badge.style.background = chColors[ch];
+                    badge.style.color = '#000';
+                    badge.innerText = `⚡ ${ch} FIRE!`;
+                    fireContainer.appendChild(badge);
+                }
+            }
+
+            // Update stats
+            document.getElementById('valLC4').innerText = potentials.LC4.toFixed(2);
+            document.getElementById('valLC11').innerText = potentials.LC11.toFixed(2);
+            document.getElementById('valHS').innerText = potentials.HS.toFixed(2);
+            document.getElementById('valVS').innerText = potentials.VS.toFixed(2);
+        }
+
+
+
+        // --- Main Loop ---
+        let lastTime = performance.now();
+        let frameCount = 0;
+
+        function animate() {
+            frameCount++;
+            const now = performance.now();
+            if (now - lastTime >= 1000) {
+                document.getElementById('fpsDisplay').innerText = `${frameCount} FPS`;
+                frameCount = 0;
+                lastTime = now;
+            }
+
+            updateVisualInput();
+            stepEndToEndMatrix();
+            renderLayers();
+            renderOscilloscope();
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LC4 Autonomous Two-Wheel Rover Simulation | 果蠅 LC4 雙輪自走車避障模擬器</title>
+    <meta name="description" content="Drosophila LC4 Looming Neural Connectome transplanted to Rear Two-Wheel Differential Drive Autonomous Rover Simulation in HTML5/JS.">
+    <link rel="stylesheet" href="fly_rover.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #030712;
+            --card-bg: rgba(15, 23, 42, 0.88);
+            --border-glow: rgba(56, 189, 248, 0.35);
+            --cyan-glow: #38bdf8;
+            --pink-glow: #f43f5e;
+            --green-glow: #22c55e;
+            --yellow-glow: #eab308;
+            --purple-glow: #a855f7;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #f1f5f9;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header-title {
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--cyan-glow), var(--green-glow), var(--pink-glow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .header-subtitle {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            font-family: var(--font-mono);
+        }
+
+        .badge-circuit {
+            display: inline-block;
+            background: rgba(34, 197, 94, 0.12);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: var(--green-glow);
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            margin-top: 8px;
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 1100px) {
+            .grid-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-glow);
+            border-radius: 12px;
+            padding: 18px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .panel-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--cyan-glow);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 8px;
+        }
+
+        .canvas-container {
+            position: relative;
+            background: #020617;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            border-radius: 6px;
+        }
+
+        .controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn-custom {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #e2e8f0;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-custom:hover {
+            background: rgba(56, 189, 248, 0.2);
+            border-color: var(--cyan-glow);
+            color: #fff;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .stat-box {
+            background: rgba(2, 6, 23, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 1.15rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--cyan-glow);
+            margin-top: 4px;
+        }
+
+        .fire-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            animation: pulse-fire 0.4s infinite alternate;
+        }
+
+        @keyframes pulse-fire {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(1.08); opacity: 1; }
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+            min-width: 130px;
+        }
+
+        .slider-group label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        input[type="range"] {
+            accent-color: var(--cyan-glow);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-section">
+        <div class="header-title">LC4 Autonomous Two-Wheel Rover Simulation</div>
+        <div class="header-subtitle">果蠅 LC4 視覺碰撞避障神經迴路 ➔ 後兩輪驅動自走車移植模擬</div>
+        <div class="badge-circuit">
+            Control Loop: Three.js 3D Camera (160x120) ➔ 32x32 Downsampler ➔ Split Eye (Left/Right) ➔ LC4 Looming ➔ Differential Motors (vL, vR)
+        </div>
+    </div>
+
+    <div class="grid-layout">
+        <!-- Left Column: Main 2D Arena Canvas & Rover Controls -->
+        <div class="panel-card">
+            <div class="panel-title">
+                <span>🚘 2D 自走車迷宮與障礙物物理模擬場域</span>
+                <span id="fpsDisplay" style="font-family: var(--font-mono); font-size: 0.85rem; color: #22c55e;">60 FPS</span>
+            </div>
+
+            <div class="canvas-container">
+                <canvas id="arenaCanvas" width="800" height="520"></canvas>
+            </div>
+
+            <div class="controls-row">
+                <button class="btn-custom" onclick="resetRoverPosition()">🔄 重置自走車位置</button>
+                <button class="btn-custom" onclick="addRandomObstacle()">➕ 新增隨機障礙物</button>
+                <button class="btn-custom" onclick="clearObstacles()">🧹 清空障礙物</button>
+                <button class="btn-custom" onclick="toggleRaycastLines()" id="btnRaycast">👁️ 隱藏 Raycast 光束</button>
+                <span style="font-size: 0.8rem; color: #64748b; margin-left: auto;">💡 提示：按住滑鼠左鍵可在迷宮中拖曳障礙物</span>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-label">左輪實體馬達 (PWM 0~255)</div>
+                    <div class="stat-value" id="valSpeedL" style="color: #38bdf8; font-size: 0.95rem;">PWM +200 (正轉 FWD)</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">右輪實體馬達 (PWM 0~255)</div>
+                    <div class="stat-value" id="valSpeedR" style="color: #38bdf8; font-size: 0.95rem;">PWM +200 (正轉 FWD)</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">偏航角速度 ω</div>
+                    <div class="stat-value" id="valYaw" style="color: #f43f5e;">0.00 rad/s</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">避障轉向狀態</div>
+                    <div class="stat-value" id="valState" style="color: #22c55e; font-size: 0.95rem;">CRUISING</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Visual Camera Split & LC4 Neural Engine -->
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            
+            <!-- Panel 2: ESP32-CAM Camera & 32x32 Downsampling Processor -->
+            <div class="panel-card">
+                <div class="panel-title">
+                    <span>📷 Three.js ESP32-CAM 實體 3D 鏡頭與 32×32 降維處理器</span>
+                    <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--cyan-glow);">Three.js 160x120 ➔ 32x32 Grid</span>
+                </div>
+
+                <div class="canvas-container" style="display: flex; gap: 10px; justify-content: space-around; padding: 8px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px;">Three.js 3D 鏡頭原始畫面 (160x120)</div>
+                        <canvas id="esp32RawCanvas" width="160" height="120" style="border: 1px solid rgba(56, 189, 248, 0.4); width: 200px; height: 150px;"></canvas>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px;">32x32 降維網格 (左眼 L | 右眼 R)</div>
+                        <canvas id="esp32GridCanvas" width="160" height="120" style="border: 1px solid rgba(34, 197, 94, 0.4); width: 200px; height: 150px;"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 3: LC4 Left / Right Oscilloscope & Motor Command -->
+            <div class="panel-card">
+                <div class="panel-title">
+                    <span>⚡ LC4 左右雙通道電位示波器</span>
+                    <div id="fireBadges" style="display: flex; gap: 6px;"></div>
+                </div>
+
+                <div class="canvas-container">
+                    <canvas id="oscCanvas" width="450" height="180"></canvas>
+                </div>
+
+                <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="stat-box">
+                        <div class="stat-label">左眼 LC4_Left 碰撞電位</div>
+                        <div class="stat-value" id="valLC4L" style="color: #22c55e;">0.00</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">右眼 LC4_Right 碰撞電位</div>
+                        <div class="stat-value" id="valLC4R" style="color: #22c55e;">0.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 4: Hardware & Neural Parameters -->
+            <div class="panel-card">
+                <div class="panel-title">
+                    <span>🎛️ 硬體馬達與 LC4 神經參數調校</span>
+                </div>
+
+                <div class="controls-row">
+                    <div class="slider-group">
+                        <label>巡航基礎車速 v0: <span id="lblV0">3.5</span></label>
+                        <input type="range" id="sliderV0" min="1.0" max="6.0" step="0.5" value="3.5">
+                    </div>
+                    <div class="slider-group">
+                        <label>LC4 避障增益 K: <span id="lblGain">2.8</span></label>
+                        <input type="range" id="sliderGain" min="0.5" max="6.0" step="0.2" value="2.8">
+                    </div>
+                    <div class="slider-group">
+                        <label>LC4 放電閾值 Thresh: <span id="lblThresh">10.0</span></label>
+                        <input type="range" id="sliderThresh" min="3.0" max="25.0" step="1.0" value="10.0">
+                    </div>
+                    <div class="slider-group">
+                        <label>近壁距離極限 MinDist: <span id="lblMinDist">42</span>px</label>
+                        <input type="range" id="sliderMinDist" min="20" max="80" step="2" value="42">
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- JavaScript LC4 Two-Wheel Rover Engine -->
+    <script>
+        const canvasArena = document.getElementById('arenaCanvas');
+        const ctxArena = canvasArena.getContext('2d');
+        const canvasEsp32Raw = document.getElementById('esp32RawCanvas');
+        const ctxEsp32Raw = canvasEsp32Raw.getContext('2d');
+        const canvasEsp32Grid = document.getElementById('esp32GridCanvas');
+        const ctxEsp32Grid = canvasEsp32Grid.getContext('2d');
+        const canvasOsc = document.getElementById('oscCanvas');
+        const ctxOsc = canvasOsc.getContext('2d');
+
+        // Parameters
+        let baseSpeed = 3.5;
+        let avoidGain = 2.8;
+        let spikeThreshold = 10.0;
+        let minSafeDist = 42; // Minimum proximity distance threshold in pixels
+        let showRaycast = true;
+
+        // Two-Wheel Differential Rover Kinematics
+        let rover = {
+            x: 120,
+            y: 260,
+            angle: 0, // Radians
+            width: 32,
+            length: 44,
+            speedL: 3.5,
+            speedR: 3.5,
+            yawSpeed: 0,
+            trail: []
+        };
+
+        // LC4 Neural Potentials
+        let lc4_left = 0.0;
+        let lc4_right = 0.0;
+        let historyL = [], historyR = [];
+        const MAX_HIST = 120;
+
+        // Arena Map Obstacles & Walls
+        let obstacles = [
+            { x: 300, y: 150, r: 35 },
+            { x: 520, y: 350, r: 45 },
+            { x: 380, y: 380, r: 30 },
+            { x: 650, y: 180, r: 40 },
+            { x: 200, y: 400, r: 25 }
+        ];
+
+        // Dragging state
+        let draggedObs = null;
+        canvasArena.addEventListener('mousedown', (e) => {
+            const rect = canvasArena.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) * (canvasArena.width / rect.width);
+            const my = (e.clientY - rect.top) * (canvasArena.height / rect.height);
+
+            obstacles.forEach(obs => {
+                if (Math.hypot(obs.x - mx, obs.y - my) <= obs.r) {
+                    draggedObs = obs;
+                }
+            });
+        });
+
+        canvasArena.addEventListener('mousemove', (e) => {
+            if (draggedObs) {
+                const rect = canvasArena.getBoundingClientRect();
+                draggedObs.x = (e.clientX - rect.left) * (canvasArena.width / rect.width);
+                draggedObs.y = (e.clientY - rect.top) * (canvasArena.height / rect.height);
+            }
+        });
+
+        window.addEventListener('mouseup', () => { draggedObs = null; });
+
+        // Sliders Listeners
+        document.getElementById('sliderV0').addEventListener('input', (e) => {
+            baseSpeed = parseFloat(e.target.value);
+            document.getElementById('lblV0').innerText = baseSpeed.toFixed(1);
+        });
+        document.getElementById('sliderGain').addEventListener('input', (e) => {
+            avoidGain = parseFloat(e.target.value);
+            document.getElementById('lblGain').innerText = avoidGain.toFixed(1);
+        });
+        document.getElementById('sliderThresh').addEventListener('input', (e) => {
+            spikeThreshold = parseFloat(e.target.value);
+            document.getElementById('lblThresh').innerText = spikeThreshold.toFixed(1);
+        });
+        document.getElementById('sliderMinDist').addEventListener('input', (e) => {
+            minSafeDist = parseInt(e.target.value);
+            document.getElementById('lblMinDist').innerText = minSafeDist;
+        });
+
+        function resetRoverPosition() {
+            rover.x = 120;
+            rover.y = 260;
+            rover.angle = 0;
+            rover.trail = [];
+            lc4_left = 0;
+            lc4_right = 0;
+        }
+
+        function addRandomObstacle() {
+            const rx = 200 + Math.random() * 500;
+            const ry = 80 + Math.random() * 360;
+            const rr = 25 + Math.random() * 25;
+            obstacles.push({ x: rx, y: ry, r: rr });
+            sync3DObstacles();
+        }
+
+        function clearObstacles() {
+            obstacles = [];
+            sync3DObstacles();
+        }
+
+        function toggleRaycastLines() {
+            showRaycast = !showRaycast;
+            document.getElementById('btnRaycast').innerText = showRaycast ? '👁️ 隱藏 Raycast 光束' : '👁️ 顯示 Raycast 光束';
+        }
+
+        // --- 1. Three.js ESP32-CAM 3D Scene Pipeline & Image Processing ---
+        let scene3D, camera3D, renderer3D;
+        let obstacleMeshesGroup;
+        let useThreeJs = false;
+
+        // Offscreen canvas for 160x120 -> 32x32 Downsampling
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = 32;
+        offCanvas.height = 32;
+        const offCtx = offCanvas.getContext('2d');
+
+        // 32x32 Retinal Grid Memory
+        const gridCurr = new Float32Array(32 * 32);
+        const gridPrev = new Float32Array(32 * 32);
+
+        let cameraLoomingLeft = 0;
+        let cameraLoomingRight = 0;
+
+        function isWebGlSupported() {
+            try {
+                const c = document.createElement('canvas');
+                return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl')));
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function initThreeJS() {
+            if (typeof THREE === 'undefined') {
+                console.warn('Three.js library not loaded. Activating Software 3D Perspective Pipeline.');
+                useThreeJs = false;
+                return;
+            }
+            if (!isWebGlSupported()) {
+                console.log('WebGL hardware context not supported in browser environment. Activating Software 3D Perspective Pipeline.');
+                useThreeJs = false;
+                return;
+            }
+            try {
+                scene3D = new THREE.Scene();
+                scene3D.background = new THREE.Color(0x020617);
+                scene3D.fog = new THREE.FogExp2(0x020617, 0.0018);
+
+                camera3D = new THREE.PerspectiveCamera(70, 160 / 120, 1, 1000);
+
+                renderer3D = new THREE.WebGLRenderer({
+                    canvas: canvasEsp32Raw,
+                    antialias: true,
+                    preserveDrawingBuffer: true
+                });
+                renderer3D.setSize(160, 120, false);
+                renderer3D.setPixelRatio(1);
+
+                // Lighting
+                const ambientLight = new THREE.AmbientLight(0x60a5fa, 0.9);
+                scene3D.add(ambientLight);
+
+                const headlight = new THREE.PointLight(0x38bdf8, 3.0, 450);
+                headlight.position.set(0, 15, 0);
+                camera3D.add(headlight);
+                scene3D.add(camera3D);
+
+                // Floor Plane
+                const floorGeo = new THREE.PlaneGeometry(800, 520);
+                const floorMat = new THREE.MeshStandardMaterial({ color: 0x070d19, roughness: 0.8 });
+                const floor = new THREE.Mesh(floorGeo, floorMat);
+                floor.rotation.x = -Math.PI / 2;
+                floor.position.set(400, 0, 260);
+                scene3D.add(floor);
+
+                // Grid Helper
+                const gridHelper = new THREE.GridHelper(800, 40, 0x38bdf8, 0x1e293b);
+                gridHelper.position.set(400, 0.5, 260);
+                scene3D.add(gridHelper);
+
+                // Boundary Walls
+                const wallMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x0284c7, emissiveIntensity: 0.35 });
+                const wallTB = new THREE.BoxGeometry(800, 40, 10);
+                const wallTop = new THREE.Mesh(wallTB, wallMat); wallTop.position.set(400, 20, 5); scene3D.add(wallTop);
+                const wallBot = new THREE.Mesh(wallTB, wallMat); wallBot.position.set(400, 20, 515); scene3D.add(wallBot);
+
+                const wallLR = new THREE.BoxGeometry(10, 40, 520);
+                const wallLeft = new THREE.Mesh(wallLR, wallMat); wallLeft.position.set(5, 20, 260); scene3D.add(wallLeft);
+                const wallRight = new THREE.Mesh(wallLR, wallMat); wallRight.position.set(795, 20, 260); scene3D.add(wallRight);
+
+                // Obstacle Group
+                obstacleMeshesGroup = new THREE.Group();
+                scene3D.add(obstacleMeshesGroup);
+                sync3DObstacles();
+
+                useThreeJs = true;
+                console.log('Three.js 3D ESP32-CAM Pipeline initialized successfully!');
+            } catch (e) {
+                console.warn('Three.js WebGL Renderer init fallback:', e);
+                useThreeJs = false;
+            }
+        }
+
+        function sync3DObstacles() {
+            if (!useThreeJs || !obstacleMeshesGroup) return;
+            while (obstacleMeshesGroup.children.length > 0) {
+                const child = obstacleMeshesGroup.children.pop();
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            }
+            obstacles.forEach(obs => {
+                const geo = new THREE.CylinderGeometry(obs.r, obs.r, 50, 24);
+                const mat = new THREE.MeshStandardMaterial({
+                    color: 0xf43f5e,
+                    roughness: 0.3,
+                    metalness: 0.5,
+                    emissive: 0xe11d48,
+                    emissiveIntensity: 0.45
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(obs.x, 25, obs.y);
+                obstacleMeshesGroup.add(mesh);
+            });
+        }
+
+        // Initialize Three.js when script loads
+        window.addEventListener('load', initThreeJS);
+        setTimeout(initThreeJS, 300);
+
+        // --- 1. Raycasting Camera Vision ($32 \times 32$ Split Eye) ---
+        const NUM_RAYS = 32;
+        const GRID_SIZE = 32;
+        const FOV = Math.PI * 0.65; // 117 degrees field of view
+        let rayDistances = new Float32Array(NUM_RAYS);
+        let rayPrevDistances = new Float32Array(NUM_RAYS);
+
+        function updateRaycastingCamera() {
+            rayPrevDistances.set(rayDistances);
+
+            const startAngle = rover.angle - FOV / 2;
+            const angleStep = FOV / (NUM_RAYS - 1);
+
+            for (let i = 0; i < NUM_RAYS; i++) {
+                const rayAngle = startAngle + i * angleStep;
+                let minDist = 300.0; // Max visual range
+
+                // Cast ray against 4 outer walls
+                const cosA = Math.cos(rayAngle);
+                const sinA = Math.sin(rayAngle);
+
+                // Right wall
+                if (cosA > 0) minDist = Math.min(minDist, (canvasArena.width - 20 - rover.x) / cosA);
+                // Left wall
+                if (cosA < 0) minDist = Math.min(minDist, (20 - rover.x) / cosA);
+                // Bottom wall
+                if (sinA > 0) minDist = Math.min(minDist, (canvasArena.height - 20 - rover.y) / sinA);
+                // Top wall
+                if (sinA < 0) minDist = Math.min(minDist, (20 - rover.y) / sinA);
+
+                // Cast ray against circular obstacles
+                obstacles.forEach(obs => {
+                    const dx = obs.x - rover.x;
+                    const dy = obs.y - rover.y;
+                    const proj = dx * cosA + dy * sinA;
+                    if (proj > 0) {
+                        const perpDistSq = (dx * dx + dy * dy) - (proj * proj);
+                        if (perpDistSq < obs.r * obs.r) {
+                            const hitDist = proj - Math.sqrt(obs.r * obs.r - perpDistSq);
+                            if (hitDist > 0 && hitDist < minDist) {
+                                minDist = hitDist;
+                            }
+                        }
+                    }
+                });
+
+                rayDistances[i] = Math.max(10.0, minDist);
+            }
+        }
+
+        // Corner Lock Recovery State Machine: 'NORMAL' | 'REVERSE' | 'PIVOT'
+        let escapeState = 'NORMAL';
+        let escapeTimer = 0;
+        let escapePivotDir = 1;
+
+        // --- 2. LC4 Left vs Right Connectome Engine ---
+        function stepLC4Engine() {
+            let loomingLeft = 0;
+            let loomingRight = 0;
+
+            if (useThreeJs) {
+                // Real Image Processing: Looming calculated directly from Three.js 3D camera 32x32 downsampled pixels!
+                loomingLeft = cameraLoomingLeft;
+                loomingRight = cameraLoomingRight;
+            } else {
+                // Raycast fallback calculation
+                for (let i = 0; i < NUM_RAYS; i++) {
+                    const currD = rayDistances[i];
+                    const prevD = rayPrevDistances[i];
+                    const proximityCurr = 300.0 / currD;
+                    const proximityPrev = 300.0 / prevD;
+                    const expansionRate = Math.max(0, proximityCurr - proximityPrev);
+                    if (i < 16) {
+                        loomingLeft += expansionRate * (currD < 120 ? 2.2 : 0.8);
+                    } else {
+                        loomingRight += expansionRate * (currD < 120 ? 2.2 : 0.8);
+                    }
+                }
+            }
+
+            // Leaky Integrator State Update
+            const leak = 0.70;
+            lc4_left = (leak * lc4_left) + loomingLeft;
+            lc4_right = (leak * lc4_right) + loomingRight;
+
+            // Record History
+            historyL.push(lc4_left);
+            historyR.push(lc4_right);
+            if (historyL.length > MAX_HIST) {
+                historyL.shift();
+                historyR.shift();
+            }
+
+            // Check Minimum Proximity Distances
+            let minD_Left = 300, minD_Right = 300, minD_Front = 300;
+            for (let i = 0; i < 16; i++) minD_Left = Math.min(minD_Left, rayDistances[i]);
+            for (let i = 16; i < 32; i++) minD_Right = Math.min(minD_Right, rayDistances[i]);
+            for (let i = 12; i < 20; i++) minD_Front = Math.min(minD_Front, rayDistances[i]);
+
+            // --- 3. CORNER LOCK RECOVERY STATE MACHINE ---
+            if (escapeState === 'NORMAL') {
+                // Trigger condition: Front jammed (<minSafeDist) OR dual LC4 spike (head-on corner trap)
+                if (minD_Front < minSafeDist || (lc4_left > spikeThreshold * 0.7 && lc4_right > spikeThreshold * 0.7)) {
+                    escapeState = 'PIVOT';
+                    escapeTimer = 22; // ~0.35s zero-radius random pivot turn
+                    escapePivotDir = Math.random() < 0.5 ? 1 : -1; // Randomize spin direction (left/right)
+                }
+            }
+
+            if (escapeState === 'PIVOT') {
+                escapeTimer--;
+                // Zero-radius differential spin: One wheel forward, one wheel reverse (random direction)
+                rover.speedL = baseSpeed * 1.8 * escapePivotDir;
+                rover.speedR = -baseSpeed * 1.8 * escapePivotDir;
+                if (escapeTimer <= 0) {
+                    escapeState = 'NORMAL'; // Immediately transition forward after turn!
+                }
+            } else {
+                // NORMAL Differential Steering
+                const driveL = Math.max(0, lc4_left - 1.5) * avoidGain;
+                const driveR = Math.max(0, lc4_right - 1.5) * avoidGain;
+
+                rover.speedL = baseSpeed + driveR * 1.2 - driveL * 1.4;
+                rover.speedR = baseSpeed + driveL * 1.2 - driveR * 1.4;
+
+                if (minD_Left < 30) rover.speedL = -baseSpeed * 1.0;
+                if (minD_Right < 30) rover.speedR = -baseSpeed * 1.0;
+            }
+
+            // Clamp wheel speeds
+            rover.speedL = Math.max(-baseSpeed * 1.8, Math.min(baseSpeed * 2.2, rover.speedL));
+            rover.speedR = Math.max(-baseSpeed * 1.8, Math.min(baseSpeed * 2.2, rover.speedR));
+
+            // Differential Kinematics
+            const v = (rover.speedL + rover.speedR) / 2.0;
+            rover.yawSpeed = (rover.speedR - rover.speedL) / 24.0; // Axle distance = 24
+
+            rover.angle += rover.yawSpeed * 0.1;
+            rover.x += Math.cos(rover.angle) * v;
+            rover.y += Math.sin(rover.angle) * v;
+
+            // Wall Collisions
+            rover.x = Math.max(35, Math.min(canvasArena.width - 35, rover.x));
+            rover.y = Math.max(35, Math.min(canvasArena.height - 35, rover.y));
+
+            // Record Trail
+            rover.trail.push({ x: rover.x, y: rover.y });
+            if (rover.trail.length > 80) rover.trail.shift();
+        }
+
+        // --- Render 2D Arena ---
+        function renderArena() {
+            ctxArena.fillStyle = '#020617';
+            ctxArena.fillRect(0, 0, canvasArena.width, canvasArena.height);
+
+            // Draw Grid Lines
+            ctxArena.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+            ctxArena.lineWidth = 1;
+            for (let x = 0; x < canvasArena.width; x += 40) {
+                ctxArena.beginPath(); ctxArena.moveTo(x, 0); ctxArena.lineTo(x, canvasArena.height); ctxArena.stroke();
+            }
+            for (let y = 0; y < canvasArena.height; y += 40) {
+                ctxArena.beginPath(); ctxArena.moveTo(0, y); ctxArena.lineTo(canvasArena.width, y); ctxArena.stroke();
+            }
+
+            // Outer Boundary Walls
+            ctxArena.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+            ctxArena.lineWidth = 4;
+            ctxArena.strokeRect(18, 18, canvasArena.width - 36, canvasArena.height - 36);
+
+            // Draw Obstacles
+            obstacles.forEach(obs => {
+                ctxArena.fillStyle = 'rgba(244, 63, 94, 0.25)';
+                ctxArena.strokeStyle = '#f43f5e';
+                ctxArena.lineWidth = 2;
+                ctxArena.beginPath();
+                ctxArena.arc(obs.x, obs.y, obs.r, 0, Math.PI * 2);
+                ctxArena.fill();
+                ctxArena.stroke();
+
+                // Inner core
+                ctxArena.fillStyle = '#f43f5e';
+                ctxArena.beginPath();
+                ctxArena.arc(obs.x, obs.y, 4, 0, Math.PI * 2);
+                ctxArena.fill();
+            });
+
+            // Draw Rover Trail
+            ctxArena.strokeStyle = 'rgba(34, 197, 94, 0.4)';
+            ctxArena.lineWidth = 2;
+            ctxArena.beginPath();
+            rover.trail.forEach((pt, idx) => {
+                if (idx === 0) ctxArena.moveTo(pt.x, pt.y);
+                else ctxArena.lineTo(pt.x, pt.y);
+            });
+            ctxArena.stroke();
+
+            // Draw Raycast Vision Lines
+            if (showRaycast) {
+                const startAngle = rover.angle - FOV / 2;
+                const angleStep = FOV / (NUM_RAYS - 1);
+                for (let i = 0; i < NUM_RAYS; i++) {
+                    const rayAngle = startAngle + i * angleStep;
+                    const dist = rayDistances[i];
+                    const hitX = rover.x + Math.cos(rayAngle) * dist;
+                    const hitY = rover.y + Math.sin(rayAngle) * dist;
+
+                    ctxArena.strokeStyle = (i < 16) ? 'rgba(56, 189, 248, 0.25)' : 'rgba(234, 179, 8, 0.25)';
+                    ctxArena.lineWidth = 1;
+                    ctxArena.beginPath();
+                    ctxArena.moveTo(rover.x, rover.y);
+                    ctxArena.lineTo(hitX, hitY);
+                    ctxArena.stroke();
+
+                    // Hit dot
+                    ctxArena.fillStyle = dist < 120 ? '#f43f5e' : (i < 16 ? '#38bdf8' : '#eab308');
+                    ctxArena.beginPath();
+                    ctxArena.arc(hitX, hitY, 2.5, 0, Math.PI * 2);
+                    ctxArena.fill();
+                }
+            }
+
+            // Draw Two-Wheel Rover Body
+            ctxArena.save();
+            ctxArena.translate(rover.x, rover.y);
+            ctxArena.rotate(rover.angle);
+
+            // Rear Left Wheel
+            ctxArena.fillStyle = lc4_left > spikeThreshold ? '#f43f5e' : '#38bdf8';
+            ctxArena.fillRect(-rover.length / 2, -rover.width / 2 - 5, 14, 6);
+
+            // Rear Right Wheel
+            ctxArena.fillStyle = lc4_right > spikeThreshold ? '#f43f5e' : '#eab308';
+            ctxArena.fillRect(-rover.length / 2, rover.width / 2 - 1, 14, 6);
+
+            // Rover Chassis Body
+            ctxArena.fillStyle = '#0f172a';
+            ctxArena.strokeStyle = '#38bdf8';
+            ctxArena.lineWidth = 2;
+            ctxArena.beginPath();
+            ctxArena.roundRect(-rover.length / 2 + 4, -rover.width / 2, rover.length - 8, rover.width, 6);
+            ctxArena.fill();
+            ctxArena.stroke();
+
+            // Front Camera Turret
+            ctxArena.fillStyle = '#22c55e';
+            ctxArena.beginPath();
+            ctxArena.arc(rover.length / 2 - 6, 0, 7, 0, Math.PI * 2);
+            ctxArena.fill();
+
+            // Headlight Beam
+            ctxArena.fillStyle = 'rgba(56, 189, 248, 0.15)';
+            ctxArena.beginPath();
+            ctxArena.moveTo(rover.length / 2, 0);
+            ctxArena.lineTo(rover.length / 2 + 40, -20);
+            ctxArena.lineTo(rover.length / 2 + 40, 20);
+            ctxArena.closePath();
+            ctxArena.fill();
+
+            ctxArena.restore();
+
+            // Update Stats Display (Physical 8-Bit PWM 0-255 & Direction)
+            const maxRefV = baseSpeed * 2.2;
+            const pwmL = Math.round(Math.max(-255, Math.min(255, (rover.speedL / maxRefV) * 255)));
+            const pwmR = Math.round(Math.max(-255, Math.min(255, (rover.speedR / maxRefV) * 255)));
+
+            const dirL = pwmL >= 0 ? '正轉 FWD' : '逆轉 REV';
+            const dirR = pwmR >= 0 ? '正轉 FWD' : '逆轉 REV';
+
+            const elL = document.getElementById('valSpeedL');
+            const elR = document.getElementById('valSpeedR');
+
+            elL.innerText = `PWM ${pwmL >= 0 ? '+' : ''}${pwmL} (${dirL})`;
+            elR.innerText = `PWM ${pwmR >= 0 ? '+' : ''}${pwmR} (${dirR})`;
+
+            elL.style.color = pwmL >= 0 ? '#38bdf8' : '#f43f5e';
+            elR.style.color = pwmR >= 0 ? '#eab308' : '#f43f5e';
+
+            document.getElementById('valYaw').innerText = `${rover.yawSpeed.toFixed(2)} rad/s`;
+
+            const stateLbl = document.getElementById('valState');
+            if (escapeState === 'PIVOT') {
+                stateLbl.innerText = '🔄 CORNER TRAP: RANDOM PIVOT TURN!';
+                stateLbl.style.color = '#eab308';
+            } else if (lc4_left > spikeThreshold && lc4_right > spikeThreshold) {
+                stateLbl.innerText = '⚡ DUAL LC4 SPIKE!';
+                stateLbl.style.color = '#f43f5e';
+            } else if (lc4_left > spikeThreshold) {
+                stateLbl.innerText = '↪️ LC4_LEFT: TURN RIGHT!';
+                stateLbl.style.color = '#38bdf8';
+            } else if (lc4_right > spikeThreshold) {
+                stateLbl.innerText = '↩️ LC4_RIGHT: TURN LEFT!';
+                stateLbl.style.color = '#eab308';
+            } else {
+                stateLbl.innerText = '✈️ CRUISING FORWARD';
+                stateLbl.style.color = '#22c55e';
+            }
+        }
+
+        // --- Render ESP32-CAM Video Viewport & 32x32 Downsampling Grid Pipeline ---
+        function renderEsp32CamPipeline() {
+            if (useThreeJs && renderer3D) {
+                // 1. Update 3D Camera Position & Angle to match Rover's pose in 2D Arena
+                camera3D.position.set(rover.x, 16, rover.y);
+                const targetX = rover.x + Math.cos(rover.angle) * 150;
+                const targetZ = rover.y + Math.sin(rover.angle) * 150;
+                camera3D.lookAt(targetX, 16, targetZ);
+
+                // Render Three.js 3D Scene into canvasEsp32Raw (160x120)
+                renderer3D.render(scene3D, camera3D);
+
+                // 2. Downsample 160x120 WebGL Canvas to 32x32 Image Pixel Matrix
+                offCtx.drawImage(canvasEsp32Raw, 0, 0, 32, 32);
+                const pixels = offCtx.getImageData(0, 0, 32, 32).data;
+
+                gridPrev.set(gridCurr);
+                cameraLoomingLeft = 0;
+                cameraLoomingRight = 0;
+
+                ctxEsp32Grid.fillStyle = '#020617';
+                ctxEsp32Grid.fillRect(0, 0, canvasEsp32Grid.width, canvasEsp32Grid.height);
+
+                const cellSize = canvasEsp32Grid.width / GRID_SIZE;
+
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        const idx = y * 32 + x;
+                        const px = idx * 4;
+                        const r = pixels[px];
+                        const g = pixels[px + 1];
+                        const b = pixels[px + 2];
+                        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+                        gridCurr[idx] = lum;
+
+                        // Temporal pixel darkening rate dI/dt (shadow expansion rate)
+                        const dI = Math.max(0, gridPrev[idx] - lum);
+
+                        if (x < 16) {
+                            cameraLoomingLeft += dI * 14.0;
+                        } else {
+                            cameraLoomingRight += dI * 14.0;
+                        }
+
+                        // Render Downsampled Cell on 32x32 Grid Canvas
+                        if (dI > 0.08) {
+                            ctxEsp32Grid.fillStyle = '#f43f5e'; // Active looming expansion cell
+                        } else if (lum > 0.05) {
+                            ctxEsp32Grid.fillStyle = x < 16 ? `rgba(56, 189, 248, ${lum * 0.9})` : `rgba(234, 179, 8, ${lum * 0.9})`;
+                        } else {
+                            ctxEsp32Grid.fillStyle = '#090d16';
+                        }
+                        ctxEsp32Grid.fillRect(x * cellSize, y * cellSize, cellSize - 0.5, cellSize - 0.5);
+                    }
+                }
+
+                // Overlay Split Eye Line & Label
+                ctxEsp32Grid.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctxEsp32Grid.setLineDash([2, 2]);
+                ctxEsp32Grid.beginPath();
+                ctxEsp32Grid.moveTo(canvasEsp32Grid.width / 2, 0);
+                ctxEsp32Grid.lineTo(canvasEsp32Grid.width / 2, canvasEsp32Grid.height);
+                ctxEsp32Grid.stroke();
+                ctxEsp32Grid.setLineDash([]);
+
+                ctxEsp32Grid.fillStyle = '#38bdf8';
+                ctxEsp32Grid.font = '10px JetBrains Mono';
+                ctxEsp32Grid.fillText('L', 4, 14);
+                ctxEsp32Grid.fillStyle = '#eab308';
+                ctxEsp32Grid.fillText('R', canvasEsp32Grid.width - 12, 14);
+
+            } else {
+                // Software 3D Perspective Camera Engine: Renders Floor Grid, 4 Boundary Walls & Obstacles
+                ctxEsp32Raw.fillStyle = '#020617';
+                ctxEsp32Raw.fillRect(0, 0, canvasEsp32Raw.width, canvasEsp32Raw.height);
+
+                const w = canvasEsp32Raw.width;
+                const h = canvasEsp32Raw.height;
+                const horizonY = h * 0.42;
+
+                const cosA = Math.cos(rover.angle);
+                const sinA = Math.sin(rover.angle);
+
+                // 1. Render 3D Ground Floor Grid with Rover Motion Shifting
+                ctxEsp32Raw.fillStyle = '#070d19';
+                ctxEsp32Raw.fillRect(0, horizonY, w, h - horizonY);
+
+                const groundOffset = (rover.x * cosA + rover.y * sinA) % 35;
+                ctxEsp32Raw.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+                ctxEsp32Raw.lineWidth = 1;
+
+                // Horizontal perspective ground grid lines
+                for (let z = 15; z <= 300; z += 35) {
+                    const effZ = ((z + groundOffset) % 280) + 12;
+                    const yLine = horizonY + (35 / effZ) * 110;
+                    if (yLine >= horizonY && yLine <= h) {
+                        ctxEsp32Raw.beginPath();
+                        ctxEsp32Raw.moveTo(0, yLine);
+                        ctxEsp32Raw.lineTo(w, yLine);
+                        ctxEsp32Raw.stroke();
+                    }
+                }
+
+                // Vertical perspective ground grid lines converging to horizon
+                const angleOffset = Math.sin(rover.angle) * 70;
+                for (let x = -300; x <= w + 300; x += 30) {
+                    ctxEsp32Raw.beginPath();
+                    ctxEsp32Raw.moveTo(w / 2 + angleOffset * 0.2, horizonY);
+                    ctxEsp32Raw.lineTo(x + angleOffset, h);
+                    ctxEsp32Raw.stroke();
+                }
+
+                // 2. Render 4 Arena Boundary Wall Surfaces (Top, Right, Bottom, Left)
+                const wallSegments = [
+                    { x1: 20, y1: 20, x2: 780, y2: 20 },   // Top Wall
+                    { x1: 780, y1: 20, x2: 780, y2: 500 }, // Right Wall
+                    { x1: 780, y1: 500, x2: 20, y2: 500 }, // Bottom Wall
+                    { x1: 20, y1: 500, x2: 20, y2: 20 }    // Left Wall
+                ];
+
+                wallSegments.forEach(seg => {
+                    const dx1 = seg.x1 - rover.x, dy1 = seg.y1 - rover.y;
+                    const camX1 = dx1 * sinA - dy1 * cosA, camZ1 = dx1 * cosA + dy1 * sinA;
+
+                    const dx2 = seg.x2 - rover.x, dy2 = seg.y2 - rover.y;
+                    const camX2 = dx2 * sinA - dy2 * cosA, camZ2 = dx2 * cosA + dy2 * sinA;
+
+                    if (camZ1 > 5 || camZ2 > 5) {
+                        const cz1 = Math.max(5, camZ1);
+                        const cz2 = Math.max(5, camZ2);
+
+                        const sx1 = w / 2 + (camX1 / cz1) * 110;
+                        const sy1_top = horizonY - (25 / cz1) * 110;
+                        const sy1_bot = horizonY + (15 / cz1) * 110;
+
+                        const sx2 = w / 2 + (camX2 / cz2) * 110;
+                        const sy2_top = horizonY - (25 / cz2) * 110;
+                        const sy2_bot = horizonY + (15 / cz2) * 110;
+
+                        ctxEsp32Raw.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                        ctxEsp32Raw.strokeStyle = '#0284c7';
+                        ctxEsp32Raw.lineWidth = 1.5;
+
+                        ctxEsp32Raw.beginPath();
+                        ctxEsp32Raw.moveTo(sx1, sy1_top);
+                        ctxEsp32Raw.lineTo(sx2, sy2_top);
+                        ctxEsp32Raw.lineTo(sx2, sy2_bot);
+                        ctxEsp32Raw.lineTo(sx1, sy1_bot);
+                        ctxEsp32Raw.closePath();
+                        ctxEsp32Raw.fill();
+                        ctxEsp32Raw.stroke();
+                    }
+                });
+
+                // 3. Render 3D Perspective Cylindrical Obstacles (Depth-Sorted)
+                const projObstacles = [];
+                obstacles.forEach(obs => {
+                    const dx = obs.x - rover.x;
+                    const dy = obs.y - rover.y;
+                    const camX = dx * sinA - dy * cosA;
+                    const camZ = dx * cosA + dy * sinA;
+
+                    if (camZ > 8) { // In front of camera lens
+                        projObstacles.push({
+                            obs,
+                            camX,
+                            camZ,
+                            screenX: w / 2 + (camX / camZ) * 110,
+                            screenW: Math.max(8, (obs.r * 2 / camZ) * 110),
+                            screenH: Math.max(12, (obs.r * 3 / camZ) * 110)
+                        });
+                    }
+                });
+
+                projObstacles.sort((a, b) => b.camZ - a.camZ);
+
+                projObstacles.forEach(item => {
+                    const x = item.screenX - item.screenW / 2;
+                    const y = horizonY + (h - horizonY) * 0.2 - item.screenH / 2;
+
+                    const grad = ctxEsp32Raw.createLinearGradient(x, y, x + item.screenW, y);
+                    grad.addColorStop(0, 'rgba(244, 63, 94, 0.95)');
+                    grad.addColorStop(0.5, '#f43f5e');
+                    grad.addColorStop(1, 'rgba(159, 18, 57, 0.95)');
+
+                    ctxEsp32Raw.fillStyle = grad;
+                    ctxEsp32Raw.fillRect(x, y, item.screenW, item.screenH);
+
+                    ctxEsp32Raw.strokeStyle = '#fda4af';
+                    ctxEsp32Raw.lineWidth = 1;
+                    ctxEsp32Raw.strokeRect(x, y, item.screenW, item.screenH);
+                });
+
+                // Viewport Text Overlay
+                ctxEsp32Raw.fillStyle = '#22c55e';
+                ctxEsp32Raw.font = '10px JetBrains Mono';
+                ctxEsp32Raw.fillText('ESP32-CAM 160x120 (3D Floor+Walls)', 8, 14);
+
+                // Downsample 160x120 Software Camera Canvas to 32x32 Retinal Grid
+                offCtx.drawImage(canvasEsp32Raw, 0, 0, 32, 32);
+                const pixels = offCtx.getImageData(0, 0, 32, 32).data;
+
+                gridPrev.set(gridCurr);
+                cameraLoomingLeft = 0;
+                cameraLoomingRight = 0;
+
+                ctxEsp32Grid.fillStyle = '#020617';
+                ctxEsp32Grid.fillRect(0, 0, canvasEsp32Grid.width, canvasEsp32Grid.height);
+
+                const cellSize = canvasEsp32Grid.width / GRID_SIZE;
+
+                for (let y = 0; y < GRID_SIZE; y++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        const idx = y * 32 + x;
+                        const px = idx * 4;
+                        const r = pixels[px];
+                        const g = pixels[px + 1];
+                        const b = pixels[px + 2];
+                        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+                        gridCurr[idx] = lum;
+
+                        const dI = Math.max(0, gridPrev[idx] - lum);
+
+                        if (x < 16) {
+                            cameraLoomingLeft += dI * 14.0;
+                        } else {
+                            cameraLoomingRight += dI * 14.0;
+                        }
+
+                        if (dI > 0.08) {
+                            ctxEsp32Grid.fillStyle = '#f43f5e';
+                        } else if (lum > 0.05) {
+                            ctxEsp32Grid.fillStyle = x < 16 ? `rgba(56, 189, 248, ${lum * 0.9})` : `rgba(234, 179, 8, ${lum * 0.9})`;
+                        } else {
+                            ctxEsp32Grid.fillStyle = '#090d16';
+                        }
+                        ctxEsp32Grid.fillRect(x * cellSize, y * cellSize, cellSize - 0.5, cellSize - 0.5);
+                    }
+                }
+
+                // Overlay Split Eye Line
+                ctxEsp32Grid.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctxEsp32Grid.setLineDash([2, 2]);
+                ctxEsp32Grid.beginPath();
+                ctxEsp32Grid.moveTo(canvasEsp32Grid.width / 2, 0);
+                ctxEsp32Grid.lineTo(canvasEsp32Grid.width / 2, canvasEsp32Grid.height);
+                ctxEsp32Grid.stroke();
+                ctxEsp32Grid.setLineDash([]);
+
+                ctxEsp32Grid.fillStyle = '#38bdf8';
+                ctxEsp32Grid.font = '10px JetBrains Mono';
+                ctxEsp32Grid.fillText('L', 4, 14);
+                ctxEsp32Grid.fillStyle = '#eab308';
+                ctxEsp32Grid.fillText('R', canvasEsp32Grid.width - 12, 14);
+            }
+        }
+
+        // --- Render Oscilloscope Canvas ---
+        function renderOscilloscope() {
+            ctxOsc.fillStyle = '#020617';
+            ctxOsc.fillRect(0, 0, canvasOsc.width, canvasOsc.height);
+
+            // Draw Threshold Line
+            const threshY = canvasOsc.height - (spikeThreshold / 30.0) * canvasOsc.height;
+            ctxOsc.strokeStyle = 'rgba(244, 63, 94, 0.5)';
+            ctxOsc.setLineDash([4, 4]);
+            ctxOsc.beginPath();
+            ctxOsc.moveTo(0, threshY);
+            ctxOsc.lineTo(canvasOsc.width, threshY);
+            ctxOsc.stroke();
+            ctxOsc.setLineDash([]);
+
+            ctxOsc.fillStyle = '#f43f5e';
+            ctxOsc.font = '10px JetBrains Mono';
+            ctxOsc.fillText(`LC4 Spike Threshold (${spikeThreshold.toFixed(1)})`, 10, threshY - 4);
+
+            // Render LC4_Left Line
+            ctxOsc.strokeStyle = '#38bdf8';
+            ctxOsc.lineWidth = 2;
+            ctxOsc.beginPath();
+            for (let i = 0; i < historyL.length; i++) {
+                const x = (i / MAX_HIST) * canvasOsc.width;
+                const y = canvasOsc.height - Math.min(canvasOsc.height - 10, (historyL[i] / 30.0) * canvasOsc.height);
+                if (i === 0) ctxOsc.moveTo(x, y);
+                else ctxOsc.lineTo(x, y);
+            }
+            ctxOsc.stroke();
+
+            // Render LC4_Right Line
+            ctxOsc.strokeStyle = '#eab308';
+            ctxOsc.lineWidth = 2;
+            ctxOsc.beginPath();
+            for (let i = 0; i < historyR.length; i++) {
+                const x = (i / MAX_HIST) * canvasOsc.width;
+                const y = canvasOsc.height - Math.min(canvasOsc.height - 10, (historyR[i] / 30.0) * canvasOsc.height);
+                if (i === 0) ctxOsc.moveTo(x, y);
+                else ctxOsc.lineTo(x, y);
+            }
+            ctxOsc.stroke();
+
+            // Update Badges
+            const fireContainer = document.getElementById('fireBadges');
+            fireContainer.innerHTML = '';
+
+            if (lc4_left >= spikeThreshold) {
+                const badge = document.createElement('span');
+                badge.className = 'fire-badge';
+                badge.style.background = '#38bdf8';
+                badge.style.color = '#000';
+                badge.innerText = '⚡ LC4_L FIRE!';
+                fireContainer.appendChild(badge);
+            }
+
+            if (lc4_right >= spikeThreshold) {
+                const badge = document.createElement('span');
+                badge.className = 'fire-badge';
+                badge.style.background = '#eab308';
+                badge.style.color = '#000';
+                badge.innerText = '⚡ LC4_R FIRE!';
+                fireContainer.appendChild(badge);
+            }
+
+            document.getElementById('valLC4L').innerText = lc4_left.toFixed(2);
+            document.getElementById('valLC4R').innerText = lc4_right.toFixed(2);
+        }
+
+        // --- Main Animation Loop ---
+        let lastTime = performance.now();
+        let frameCount = 0;
+
+        function animate() {
+            frameCount++;
+            const now = performance.now();
+            if (now - lastTime >= 1000) {
+                document.getElementById('fpsDisplay').innerText = `${frameCount} FPS`;
+                frameCount = 0;
+                lastTime = now;
+            }
+
+            updateRaycastingCamera();
+            stepLC4Engine();
+            renderArena();
+            renderEsp32CamPipeline();
+            renderOscilloscope();
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>

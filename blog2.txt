@@ -17,47 +17,49 @@
 光訊號進入大腦後，並非直接送往高階決策區，而是經過視葉（Optic Lobe）的 **Stage 1 (Lamina)** $\rightarrow$ **Stage 2 (Medulla)** $\rightarrow$ **Stage 3 (Lobula)** 三段式層層提取動態特徵：
 
 ```text
-【Stage 1: Lamina 光感測與邊緣分流】
-  R1 - R6 (32x32 灰階光感) ---> L1 (ON 通道: ΔI > 0 變亮邊緣)
-                         ---> L2/L3 (OFF 通道: ΔI < 0 變暗邊緣)
+【Stage 1: Lamina 光感測與邊緣分流】(全腦 8,884 顆)
+  R1 - R6 (32x32 灰階光感) ---> L1 (ON 通道: 1,776 顆 ΔI > 0 變亮邊緣)
+                         ---> L2 (OFF 通道: 1,779 顆) / L3 (1,772 顆) / L4 (1,770 顆) / L5 (1,787 顆)
 
-【Stage 2: Medulla 時間延遲緩衝區 (Delay Buffers)】
-  L1 ON 通道  ---> Mi1 / Mi9 (慢訊號: t - Δt) vs Tm3 / Mi4 (快訊號: t)
-  L2 OFF 通道 ---> Tm9 / Tm4 (慢訊號: t - Δt) vs Tm1 / Tm2 (快訊號: t)
+【Stage 2: Medulla 時間延遲緩衝區 (Delay Buffers)】(全腦 14,358 顆)
+  L1 ON 通道  ---> Mi1 (1,773 顆) / Mi9 (1,775 顆) (慢訊號: t - Δt) vs Tm3 (2,054 顆) / Mi4 (1,772 顆) (快訊號: t)
+  L2 OFF 通道 ---> Tm9 (1,771 顆) / Tm4 (1,670 顆) (慢訊號: t - Δt) vs Tm1 (1,777 顆) / Tm2 (1,766 顆) (快訊號: t)
 
-【Stage 3: Lobula 方向選擇性 Reichardt 運動相關器】
-  T4a - d (ON 運動)  : Mi1_slow (空間位移) x Tm3_fast (4 方向: 右, 左, 上, 下)
-  T5a - d (OFF 運動) : Tm9_slow (空間位移) x Tm1_fast (4 方向: 右, 左, 上, 下)
+【Stage 3: Lobula 方向選擇性 Reichardt 運動相關器】(全腦 13,580 顆)
+  T4a - d (ON 運動 6,862 顆)  : Mi1_slow (空間位移) x Tm3_fast (4 方向: 右 1684, 左 1690, 上 1778, 下 1709)
+  T5a - d (OFF 運動 6,719 顆) : Tm9_slow (空間位移) x Tm1_fast (4 方向: 右 1664, 左 1715, 上 1720, 下 1620)
 
 【Stage 4: Connectome 終端神經元與運動輸出】
-  T4 / T5 -> LC4  (碰撞避障 Looming) ──> 雙翅閃避推進
-  T4      -> LC11 (小物件 STMD 追蹤) ──> 高增益微小目標感測
-  T4 / T5 -> HS   (水平偏航 Yaw)      ──> 左右轉向馬達控制
+  T4 / T5 -> LC4  (碰撞避障 Looming) ──> 126 顆 ──> 雙翅閃避推進 (連至降向神經元 DNp04/DNp01)
+  T4      -> LC11 (小物件 STMD 追蹤) ──> 143 顆 ──> 高增益微小目標感測
+  T4 / T5 -> HS   (水平偏航 Yaw)      ──> 6 顆 (HSN: 2, HSE: 2, HSS: 2) ──> 左右轉向馬達控制
   T4 / T5 -> VS   (垂直俯仰 Pitch)    ──> 俯仰與飛行高度控制
 ```
 
-#### 1. Stage 1: Lamina (光感測與邊緣分流)
+#### 1. Stage 1: Lamina (光感測與邊緣分流 - 全腦 8,884 顆)
 - **R1-R6 感光細胞**：接收 $32 \times 32$ 原始灰階光強。
 - **L1 / L2 / L3 邊緣分流**：計算光強隨時間的微分 $\Delta I = I(t) - I(t-\Delta t)$。
-  - **L1 (ON 通道)**：只保留 $\Delta I > 0$ 的變亮邊緣，發送「光源靠近 / 物體離開」訊號。
-  - **L2/L3 (OFF 通道)**：只保留 $\Delta I < 0$ 的變暗邊緣，發送「陰影覆蓋 / 物體靠近」訊號。
+  - **L1 (ON 通道)**：全腦 **1,776 顆**，只保留 $\Delta I > 0$ 的變亮邊緣，發送「光源靠近 / 物體離開」訊號。
+  - **L2/L3 (OFF 通道)**：全腦 **L2 1,779 顆 / L3 1,772 顆 / L4 1,770 顆 / L5 1,787 顆**，只保留 $\Delta I < 0$ 的變暗邊緣，發送「陰影覆蓋 / 物體靠近」訊號。
 
-#### 2. Stage 2: Medulla (時間延遲緩衝區 Delay Buffers)
+#### 2. Stage 2: Medulla (時間延遲緩衝區 Delay Buffers - 全腦 14,358 顆)
 視覺運動偵測的核心關鍵是「時間差」。
 Medulla 層的神經元分化出快訊號與慢訊號通路：
-- ON 通道中，**Mi1 / Mi9** 扮演「延遲記憶單元（慢訊號 $t - \Delta t$）」，而 **Tm3 / Mi4** 則是「即時反應單元（快訊號 $t$）」。
-- OFF 通道中，**Tm9 / Tm4** 為慢訊號，**Tm1 / Tm2** 為快訊號。
+- ON 通道中，**Mi1 (1,773 顆) / Mi9 (1,775 顆)** 扮演「延遲記憶單元（慢訊號 $t - \Delta t$）」，而 **Tm3 (2,054 顆) / Mi4 (1,772 顆)** 則是「即時反應單元（快訊號 $t$）」。
+- OFF 通道中，**Tm9 (1,771 顆) / Tm4 (1,670 顆)** 為慢訊號，**Tm1 (1,777 顆) / Tm2 (1,766 顆)** 為快訊號。
 
-#### 3. Stage 3: Lobula (Reichardt 運動相關器)
-到了 Lobula 層，**T4 (ON 運動)** 與 **T5 (OFF 運動)** 神經元將相鄰小眼的快慢訊號進行交叉相乘乘積算子（Cross-Correlation）：
+#### 3. Stage 3: Lobula (Reichardt 運動相關器 - 全腦 13,580 顆)
+到了 Lobula 層，**T4 (ON 運動 6,862 顆)** 與 **T5 (OFF 運動 6,719 顆)** 神經元將相鄰小眼的快慢訊號進行交叉相乘乘積算子（Cross-Correlation）：
 $$C(x, t) = I_{\text{slow}}(x, t-\Delta t) \times I_{\text{fast}}(x+\Delta x, t)$$
-透過這種算子，T4 與 T5 神經元獲得了極強的「方向選擇性（Direction Selectivity）」，能夠精確分辨物體是往「右、左、上、下」哪個方向移動！
+透過這種算子，T4 與 T5 神經元獲得了極強的「方向選擇性（Direction Selectivity）」，按 4 方向精確分工：
+- **T4 ON 運動**：T4a (右 1,684 顆)、T4b (左 1,690 顆)、T4c (上 1,778 顆)、T4d (下 1,709 顆)。
+- **T5 OFF 運動**：T5a (右 1,664 顆)、T5b (左 1,715 顆)、T5c (上 1,720 顆)、T5d (下 1,620 顆)。
 
 #### 4. Stage 4: Top-Down Connectome 突觸矩陣計算
-T4 與 T5 的 8 方向運動訊號，接著匯入由 neuPrint 解析出的 4,000 條真實突觸連結矩陣（$1,024 \times 32$ 維度）：
+T4 與 T5 的 8 方向運動訊號，接著匯入由 neuPrint 解析出的真實突觸連結矩陣：
 - 乙醯膽鹼（ACh）突觸投射：$+1.0$ 興奮性權重。
 - GABA / 谷氨酸（Glutamate）突觸投射：$-1.0$ 抑制性權重。
-最終輸出給四大功能神經通道：**LC4**（碰撞避障）、**LC11**（小目標追蹤）、**HS**（水平偏航）、**VS**（垂直俯仰）。
+最終輸出給四大功能神經通道：**LC4**（126 顆，碰撞避障，直連 DNp04 / DNp01 降向神經元）、**LC11**（143 顆，小目標追蹤）、**HS**（6 顆：HSN 2 顆, HSE 2 顆, HSS 2 顆，水平偏航）、**VS**（垂直俯仰）。
 
 ---
 
@@ -125,6 +127,126 @@ Optic Lobe Workbench 內建了 **4 通道實時動作電位示波器**，同步�
 
 ---
 
+### 🌐 附錄：【深度解析】全端神經型態矩陣演化與真實突觸空間分配 (End-to-End Neuromorphic Connectome Matrix)
+
+在視神經迴路的工程實現中，除了傳統的「微分加載與 Reichardt 算子」外，我們亦探索並實現了 **100% 全端純神經型態矩陣演化（Pure End-to-End Recurrent Matrix Propagation）**。
+
+#### 1. 全端矩陣演化方程：無需手寫程式碼邏輯
+如果把 Stage 1 到 Stage 4 全部換成神經突觸矩陣，整隻果蠅大腦的運作可被抽象為單一狀態演化方程：
+
+$$S(t+1) = \text{Leak} \cdot S(t) + \text{ReLU}\left( S(t) \cdot M_{\text{full}} + I_{\text{in}}(t) \right)$$
+
+- **時間微分與邊緣分流 ($\Delta I$)**：透過 Lamina 層神經元同時接收即時興奮突觸 (+ACh) 與延遲抑制突觸 (-GABA)，在矩陣相乘中自然抵銷與湧現。
+- **快慢時間延遲記憶**：透過對角線膜電位衰減率（$\alpha_{\text{slow}} = 0.85$ vs $\alpha_{\text{fast}} = 0.15$），將過往光強記憶自動保留於狀態向量中。
+- **方向選擇性**：透過空間偏移突觸（Spatial-Shifted Synapses）與樹突非線性閾值產生。
+- **類腦晶片契合度**：此架構可 100% 直轉燒錄進 Neuromorphic 類腦晶片（如 Intel Loihi / IBM TrueNorth）。
+
+#### 2. 全端矩陣維度拆解：$7,192 \times 7,192$
+若將整隻果蠅視葉 5 個層級合併為單一狀態向量 $S(t)$，其全端轉移方陣維度為 **$7,192 \times 7,192$**：
+
+| 神經層級 | 包含的神經元細胞群 | 維度 (Dimension) |
+| :--- | :--- | :---: |
+| **$V_0$ 視覺感光層** | Retina 小眼感光像素 ($32 \times 32$) | **1,024** |
+| **$V_1$ Lamina 邊緣分流層** | L1 ON 亮通道 ($1,024$) + L2 OFF 暗通道 ($1,024$) | **2,048** |
+| **$V_2$ Medulla 時間延遲層** | Mi1 慢延遲 ($1,024$) + Tm3 即時快通道 ($1,024$) | **2,048** |
+| **$V_3$ Lobula 運動特徵層** | T4a~d 亮運動 ($1,024$) + T5a~d 暗運動 ($1,024$) | **2,048** |
+| **$V_4$ Connectome 輸出層** | 32 個方位角度欄位 (LC4, LC11, HS, VS) | **32** |
+| **全端總維度 sum** | **$V_0 + V_1 + V_2 + V_3 + V_4$** | **7,192** |
+
+逐層分塊矩陣維度分別為：
+- $W_{\text{Stage1}}$ (Retina $\rightarrow$ Lamina)：**$1,024 \times 2,048$**
+- $W_{\text{Stage2}}$ (Lamina $\rightarrow$ Medulla)：**$2,048 \times 2,048$**
+- $W_{\text{Stage3}}$ (Medulla $\rightarrow$ Lobula)：**$2,048 \times 2,048$**
+- $W_{\text{Stage4}}$ (Lobula $\rightarrow$ Connectome)：**$2,048 \times 32$** (包含 neuPrint 22,875 條真實突觸)
+
+#### 3. 真實生物突觸如何分配至 1,024 / 2,048 空間網格？
+neuPrint 資料庫中記載著數萬條個體神經元的 3D 解剖物理座標 $(X, Y, Z)$ 與突觸權重：
+1. **3D 解剖座標 Min-Max 歸一化**：將 neuPrint 記載的神經元 3D 座標映射至 $32 \times 32$（1,024 個小眼網格）的 2D 視野座標 $(x, y)$。
+2. **多通道功能分區**：在 $V_1, V_2, V_3$ 層中，前 1,024 維度分配給 ON 通道/慢延遲通道，後 1,024 維度分配給 OFF 通道/快通道。
+3. **突觸權重空間累加**：落在同一個空間網格範圍內的多條原始突觸，其權重與極性於矩陣格子中進行線性累加（$W_{i, j} = \sum \text{polarity} \times \text{weight}$）。這保證了矩陣維度固定且運算高速，同時完全保留真實突觸網絡的權重結構。
+
+#### 4. 實體自走車馬達驅動 (Physical Motor Driver PWM Mapping: -255 ~ +255)
+在實體微控制器（Raspberry Pi / Arduino / ESP32 搭配 L298N 或 TB6612FNG 馬達驅動晶片）中，馬達轉速控制為 8-bit PWM 訊號（`0 ~ 255`）與方向 PIN 腳控制：
+
+```python
+# LC4 神經輸出 轉 實體馬達驅動晶片 (TB6612FNG / L298N) PWM 指令
+def set_physical_motor(pwm_val, pin_fwd, pin_rev, pwm_pin):
+    speed = min(255, max(0, abs(int(pwm_val))))
+    if pwm_val >= 0:
+        GPIO.output(pin_fwd, GPIO.HIGH) # 正轉 (FWD)
+        GPIO.output(pin_rev, GPIO.LOW)
+    else:
+        GPIO.output(pin_fwd, GPIO.LOW)  # 逆轉 (REV)
+        GPIO.output(pin_rev, GPIO.HIGH)
+    pwm_pin.ChangeDutyCycle(speed / 255.0 * 100.0)
+
+# 實時讀取 LC4_Left & LC4_Right 電位進行雙輪差速控制
+pwmL = int(clamp((v_base + driveR - driveL) / v_max * 255, -255, 255))
+pwmR = int(clamp((v_base + driveL - driveR) / v_max * 255, -255, 255))
+
+set_physical_motor(pwmL, MOTOR_L_IN1, MOTOR_L_IN2, PWM_L)
+set_physical_motor(pwmR, MOTOR_R_IN1, MOTOR_R_IN2, PWM_R)
+```
+
+在模擬器中，已全面升級為實體 8-Bit PWM 數值顯示（如 `PWM +215 (正轉 FWD)` 或 `PWM -180 (逆轉 REV)`），方便開發者對接實體微控制器！
+
+#### 5. ESP32-CAM Three.js 3D 鏡頭擷取與 32×32 降維處理流水線 (Three.js ESP32-CAM 3D Camera & 32x32 Downsampling Pipeline)
+
+在模擬器中，為了 100% 模擬真實世界 ESP32-CAM 鏡頭抓取光影影像的物理過程，我們採用 **Three.js 建立了實時 3D Perspective 鏡頭**，掛載於自走車前端：
+
+1. **Three.js 實體 3D 視訊畫面渲染 (160×120 QQVGA Perspective Viewport)**:
+   - Three.js WebGL 渲染器直接在 160×120 QQVGA 解析度下，實時渲染自走車前方 3D 迷宮、3D 牆壁與 3D 霓虹障礙物的立體視訊影像（30 FPS）。
+2. **圖像空間降維 (160×120 ➔ 32×32 Spatial Image Binning)**:
+   - 透過 Offscreen Canvas 將 Three.js 160×120 WebGL 視訊幀重採樣至 $32 \times 32$（共 1,024 個感光單元）拓撲視網膜網格。
+   - 計算每個降維像素的小眼灰度光壓 $I(x, y) = 0.299R + 0.587G + 0.114B$。
+3. **真實影像陰影膨脹梯度計算 ($\Delta I(x, y) = \max(0, I_{\text{prev}} - I_{\text{curr}})$)**:
+   - 當障礙物逼近鏡頭時，影像會產生暗區擴張（Darkening Looming Expansion）。
+   - 將 $32 \times 32$ 影像矩陣劃分為左眼 (Column 0~15) 與右眼 (Column 16~31)，計算影像時間差分梯度並直接輸入至 **LC4_Left** 與 **LC4_Right** 膜電位爆發發射器！
+4. **嵌入式 C++/Python 降維演算法實作**:
+
+```cpp
+// ESP32-CAM (Arduino/C++) 160x120 降維至 32x32 (1024-element) Retinal Grid
+void process_esp32cam_frame(camera_fb_t *fb, uint8_t grid32[32][32]) {
+    const int binX = fb->width / 32;  // 160 / 32 = 5 pixels
+    const int binY = fb->height / 32; // 120 / 32 = 3.75 pixels
+
+    for (int y = 0; y < 32; y++) {
+        for (int x = 0; x < 32; x++) {
+            uint32_t sum = 0;
+            int count = 0;
+            for (int dy = 0; dy < binY; dy++) {
+                for (int dx = 0; dx < binX; dx++) {
+                    int px = x * binX + dx;
+                    int py = y * binY + dy;
+                    sum += fb->buf[py * fb->width + px];
+                    count++;
+                }
+            }
+            grid32[y][x] = sum / count; // 儲存 0~255 降維亮度值
+        }
+    }
+}
+```
+```
+
+#### 5.5 牆角陷阱 (Corner Lock Trap) 判定演算法與脫困狀態機
+
+在雙輪差速避障系統中，當自走車正面沖向 90° 牆角時，若僅靠單邊差速控制，容易產生左右推力相抵的死鎖現象。演算法透過以下神經與視覺幾何特徵進行牆角判定：
+
+1. **神經電位特徵 (Dual LC4 Spike)**:
+   - **單邊障礙**：僅 `LC4_Left` 或 `LC4_Right` 單獨放電。
+   - **牆角陷阱**：牆角左右兩牆同時逼近，誘發 `(LC4_Left > Thresh * 0.7) && (LC4_Right > Thresh * 0.7)` **雙眼同時放電**。
+2. **近壁距離極限 (MinDist: 20px ~ 80px 可調參數)**:
+   - 降維網格中央欄位 $32 \times 32$ 影像距離低於使用者設定之安全臨界值（`minD_Front < minSafeDist`）。
+   - 可透過介面滑桿控制容許接近障礙物的最小距離（數值越小越貼近障礙物，數值越大越早迴旋掉頭）。
+3. **脫困狀態機（直接隨機迴旋 ➔ 前進巡航）**:
+   $$\text{NORMAL (巡航避障)} \xrightarrow{\text{Dual Spike / Front Jammed}} \text{PIVOT (隨機迴旋 Spin)} \xrightarrow{\text{0.35s}} \text{NORMAL (前進巡航)}$$
+   - **不先行倒車 (No Reverse Step)**：當判定進入牆角或前塞障礙時，直接跳過倒車階段。
+   - **`PIVOT` (隨機迴旋)**：一輪正轉、一輪逆轉（`PWM ±220`），進行零半徑原地旋轉，隨機決定左轉或右轉方向掉頭擺脫死角。
+   - **`NORMAL` (前進巡航)**：迴旋完成後直接前進，流暢接續雙輪巡航。
+
+---
+
 ### 結語：從神經圖譜到線上互動 Workbench
 
 透過將 MaleCNS 的真實 connectome 資料庫與 Stage 1-3 視葉 Reichardt 運動感測器結合，我們成功在網頁端與 Python 終端機上打造出這座 **Optic Lobe & Connectome Neural Workbench**。
@@ -136,4 +258,7 @@ Optic Lobe Workbench 內建了 **4 通道實時動作電位示波器**，同步�
 ---
 
 🌐 **GitHub Pages 線上神經遙測工作台**：[https://chihhsiangchien.github.io/maleCNS/neural_simulation.html](https://chihhsiangchien.github.io/maleCNS/neural_simulation.html)
+⚡ **全端純矩陣動態演化線上模擬器**：[https://chihhsiangchien.github.io/maleCNS/end_to_end_matrix_simulation.html](https://chihhsiangchien.github.io/maleCNS/end_to_end_matrix_simulation.html)
+🚘 **LC4 雙輪自走車避障模擬器**：[https://chihhsiangchien.github.io/maleCNS/lc4_rover_simulation.html](https://chihhsiangchien.github.io/maleCNS/lc4_rover_simulation.html)
 💻 **專案 GitHub 原始碼**：[https://github.com/ChihHsiangChien/maleCNS](https://github.com/ChihHsiangChien/maleCNS)
+
