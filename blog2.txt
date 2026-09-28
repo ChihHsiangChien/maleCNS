@@ -48,6 +48,16 @@ Medulla 層的神經元分化出快訊號與慢訊號通路：
 - ON 通道中，**Mi1 (1,773 顆) / Mi9 (1,775 顆)** 扮演「延遲記憶單元（慢訊號 $t - \Delta t$）」，而 **Tm3 (2,054 顆) / Mi4 (1,772 顆)** 則是「即時反應單元（快訊號 $t$）」。
 - OFF 通道中，**Tm9 (1,771 顆) / Tm4 (1,670 顆)** 為慢訊號，**Tm1 (1,777 顆) / Tm2 (1,766 顆)** 為快訊號。
 
+#### 2.5 相機 $32 \times 32$ 傳導鏈與 Mi1 3D 空間對位錨點 (Retinotopic Spatial Anchor)
+在此處有一個常見的神經資訊學澄清：**相機的 $32 \times 32$ 畫面並非直接輸入到 Mi1 神經元**。
+全系統的影像輸入傳導鏈為：
+$$\text{ESP32-CAM (32x32 畫面)} \xrightarrow{\text{Stage 1}} \text{R1-R6 (視網膜感光)} \rightarrow \text{L1/L2 (邊緣分離)} \xrightarrow{\text{Stage 2}} \text{Mi1/Tm3 (Medulla 延遲層)} \xrightarrow{\text{Stage 3}} \text{T4/T5 (Reichardt 運動相關器)} \xrightarrow{\text{Stage 4}} \text{LC4/LC11/HS/VS}$$
+
+**為什麼演算法要採用 Mi1 作為 $32 \times 32$ 空間對位的基準點？**
+1. neuPrint 資料庫中，最前端的 R1-R6 與 L1/L2 神經元多數缺乏完整的 3D 空間解剖座標。
+2. **Mi1 (Medulla Intrinsic 1)** 是 Medulla 層數量極其完整（1,742 顆）且呈現幾何規律柱狀陣列的神經元，並且擁有 neuPrint 官方精確記載的 3D 細胞體座標 `somaLocation['coordinates']` $(X, Y, Z)$。
+3. 因此，專案採用 Mi1 的 3D 座標作為全系統的**「空間地理錨點（Retinotopic Spatial Anchor）」**，對其 3D 座標進行 Min-Max 歸一化，映射並定位出 $32 \times 32$ 的視區網格欄位（`spatial_x`, `spatial_y`），確保相機視訊像素能與 neuPrint 4,000 條真實突觸矩陣達成完美的視區空間對位。
+
 #### 3. Stage 3: Lobula (Reichardt 運動相關器 - 全腦 13,580 顆)
 到了 Lobula 層，**T4 (ON 運動 6,862 顆)** 與 **T5 (OFF 運動 6,719 顆)** 神經元將相鄰小眼的快慢訊號進行交叉相乘乘積算子（Cross-Correlation）：
 $$C(x, t) = I_{\text{slow}}(x, t-\Delta t) \times I_{\text{fast}}(x+\Delta x, t)$$
@@ -161,9 +171,20 @@ $$S(t+1) = \text{Leak} \cdot S(t) + \text{ReLU}\left( S(t) \cdot M_{\text{full}}
 
 #### 3. 真實生物突觸如何分配至 1,024 / 2,048 空間網格？
 neuPrint 資料庫中記載著數萬條個體神經元的 3D 解剖物理座標 $(X, Y, Z)$ 與突觸權重：
-1. **3D 解剖座標 Min-Max 歸一化**：將 neuPrint 記載的神經元 3D 座標映射至 $32 \times 32$（1,024 個小眼網格）的 2D 視野座標 $(x, y)$。
-2. **多通道功能分區**：在 $V_1, V_2, V_3$ 層中，前 1,024 維度分配給 ON 通道/慢延遲通道，後 1,024 維度分配給 OFF 通道/快通道。
+1. **3D 解剖座標 Min-Max 歸一化**：將 neuPrint 記載的神經元 `somaLocation['coordinates']` 3D 座標映射至 $32 \times 32$（1,024 個小眼網格）的 2D 視野座標 $(x, y)$。
+   - **X 軸廣度**：$2,586 \sim 93,588 \text{ nm}$
+   - **Y 軸廣度**：$10,465 \sim 53,456 \text{ nm}$
+   - **Z 軸廣度**：$18,949 \sim 42,350 \text{ nm}$
+   - **雙側眼神經區分**：以大腦幾何中線 $X \approx 45,000 \text{ nm}$ 劃分，包含**左眼 (Left Optic Lobe): 869 顆** 與 **右眼 (Right Optic Lobe): 873 顆**，全腦共 **1,742 顆真實 Mi1 神經元**。
+2. **多通道功能分區**：在 $V_1, V_2, V_3$ 層中，前 1,024 維度（網格索引 0~15）分配給左眼通道，後 1,024 維度（網格索引 16~31）分配給右眼通道。
 3. **突觸權重空間累加**：落在同一個空間網格範圍內的多條原始突觸，其權重與極性於矩陣格子中進行線性累加（$W_{i, j} = \sum \text{polarity} \times \text{weight}$）。這保證了矩陣維度固定且運算高速，同時完全保留真實突觸網絡的權重結構。
+
+#### 3.5 Mi1 神經元 3D 空間拓撲檢視器與本機快取持久化 (Mi1 3D Spatial Visualizer)
+為方便研究者直觀觀察果蠅雙視葉柱狀陣列的物理空間分佈，專案提供了 **3D Web 空間檢視器 (`mi1_3d_visualizer.html`)**：
+- **Three.js 3D 軌道旋轉控制**：支援 360° 自由拖拽旋轉、滾輪無限縮放與 Shift 平移。
+- **左右半腦雙色標示**：左眼 Mi1 (天藍色) 與右眼 Mi1 (金黃色) 雙側對稱點雲。
+- **神經元 3D 資訊互動點擊**：點擊任意神經元可即時顯示其 `BodyID`、物理座標 $(X, Y, Z)$ 與對位欄位 `(spatial_x, spatial_y)`。
+- **本機快取優先 (Cache-First) 持久化**：透過 `fetch_real_neuprint_dataset.py` 腳本，將 neuPrint 的 1,742 顆 Mi1 3D 座標一次性下載並持久化儲存至本機檔案 `mi1_spatial_3d.csv` 與 `mi1_spatial_3d.json`，後續載入達到零延遲秒開且不重複消耗 API 額度。
 
 #### 4. 實體自走車馬達驅動 (Physical Motor Driver PWM Mapping: -255 ~ +255)
 在實體微控制器（Raspberry Pi / Arduino / ESP32 搭配 L298N 或 TB6612FNG 馬達驅動晶片）中，馬達轉速控制為 8-bit PWM 訊號（`0 ~ 255`）與方向 PIN 腳控制：
@@ -260,5 +281,6 @@ void process_esp32cam_frame(camera_fb_t *fb, uint8_t grid32[32][32]) {
 🌐 **GitHub Pages 線上神經遙測工作台**：[https://chihhsiangchien.github.io/maleCNS/neural_simulation.html](https://chihhsiangchien.github.io/maleCNS/neural_simulation.html)
 ⚡ **全端純矩陣動態演化線上模擬器**：[https://chihhsiangchien.github.io/maleCNS/end_to_end_matrix_simulation.html](https://chihhsiangchien.github.io/maleCNS/end_to_end_matrix_simulation.html)
 🚘 **LC4 雙輪自走車避障模擬器**：[https://chihhsiangchien.github.io/maleCNS/lc4_rover_simulation.html](https://chihhsiangchien.github.io/maleCNS/lc4_rover_simulation.html)
+👁️ **Mi1 神經元 3D 空間拓撲線上檢視器**：[https://chihhsiangchien.github.io/maleCNS/mi1_3d_visualizer.html](https://chihhsiangchien.github.io/maleCNS/mi1_3d_visualizer.html)
 💻 **專案 GitHub 原始碼**：[https://github.com/ChihHsiangChien/maleCNS](https://github.com/ChihHsiangChien/maleCNS)
 

@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi1 Neuron 3D Spatial Visualizer | 果蠅 Mi1 神經元 3D 空間拓撲視覺化工具</title>
+    <meta name="description" content="Interactive 3D Visualizer for Drosophila Medulla Mi1 Neurons Raw Spatial Coordinates (X,Y,Z) with 360-degree rotation, zoom, hemisphere filtering, and retinotopic mapping.">
+    <link rel="stylesheet" href="fly_rover.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Three.js & OrbitControls via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        :root {
+            --bg-dark: #030712;
+            --card-bg: rgba(15, 23, 42, 0.88);
+            --border-glow: rgba(56, 189, 248, 0.35);
+            --cyan-glow: #38bdf8;
+            --pink-glow: #f43f5e;
+            --green-glow: #22c55e;
+            --yellow-glow: #eab308;
+            --purple-glow: #a855f7;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #f1f5f9;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 16px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .header-title {
+            font-size: 2.0rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--cyan-glow), var(--purple-glow), var(--pink-glow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .header-subtitle {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            font-family: var(--font-mono);
+        }
+
+        .badge-info {
+            display: inline-block;
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            color: var(--cyan-glow);
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            margin-top: 6px;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 16px;
+            flex: 1;
+            max-width: 1700px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        @media (max-width: 1100px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-glow);
+            border-radius: 12px;
+            padding: 16px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            position: relative;
+        }
+
+        .panel-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--cyan-glow);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 8px;
+        }
+
+        .canvas-3d-container {
+            position: relative;
+            width: 100%;
+            height: 640px;
+            background: #020617;
+            border-radius: 10px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            overflow: hidden;
+        }
+
+        #canvas3D {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Floating Overlay Controls on 3D Viewport */
+        .overlay-hud {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(3, 7, 18, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 8px 12px;
+            border-radius: 8px;
+            backdrop-filter: blur(8px);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: #cbd5e1;
+            pointer-events: none;
+            line-height: 1.5;
+        }
+
+        .overlay-hud span {
+            color: var(--cyan-glow);
+            font-weight: bold;
+        }
+
+        .overlay-presets {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .btn-sm {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e2e8f0;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-sm:hover {
+            background: rgba(56, 189, 248, 0.25);
+            border-color: var(--cyan-glow);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .btn-active {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.4), rgba(168, 85, 247, 0.4)) !important;
+            border-color: var(--cyan-glow) !important;
+            color: #fff !important;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+        }
+
+        .controls-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control-item label {
+            font-size: 0.82rem;
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .control-item label span {
+            color: var(--cyan-glow);
+            font-family: var(--font-mono);
+            font-weight: 700;
+        }
+
+        input[type="range"] {
+            accent-color: var(--cyan-glow);
+        }
+
+        .info-card {
+            background: rgba(2, 6, 23, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+            padding-bottom: 4px;
+        }
+
+        .info-label {
+            color: #64748b;
+        }
+
+        .info-val {
+            color: var(--cyan-glow);
+            font-weight: 700;
+        }
+
+        .legend-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            color: #cbd5e1;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        /* Tooltip style */
+        #tooltip3D {
+            position: absolute;
+            background: rgba(3, 7, 18, 0.92);
+            border: 1px solid var(--cyan-glow);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: #fff;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-section">
+        <div class="header-title">Mi1 Neuron 3D Spatial Connectome Visualizer</div>
+        <div class="header-subtitle">果蠅視葉 Mi1 神經元原始 3D 空間座標拓撲與柱狀對位檢視器</div>
+        <div class="badge-info" id="dataStatBadge">
+            🧠 數據加載中... (Drosophila male-cns:v1.0 Medulla Space)
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <!-- Left: Interactive 3D Canvas Viewport -->
+        <div class="panel-card">
+            <div class="panel-title">
+                <span>🌐 3D 空間拓撲視窗 (滑鼠左鍵旋轉 | 滾輪縮放 | 右鍵平移)</span>
+                <span id="fpsCount" style="font-family: var(--font-mono); font-size: 0.82rem; color: #22c55e;">60 FPS</span>
+            </div>
+
+            <div class="canvas-3d-container">
+                <canvas id="canvas3D"></canvas>
+                
+                <!-- HUD Overlay Text -->
+                <div class="overlay-hud">
+                    <div>旋轉姿態 (Angle): <span id="hudAngle">X: 0° | Y: 0°</span></div>
+                    <div>縮放距離 (Camera Dist): <span id="hudDist">32,500 nm</span></div>
+                    <div>選取點位 (Hover Node): <span id="hudNode">None</span></div>
+                </div>
+
+                <!-- Preset View Buttons -->
+                <div class="overlay-presets">
+                    <button class="btn-sm" onclick="resetCameraView()">🔄 重置視角</button>
+                    <button class="btn-sm" onclick="setCameraPreset('top')">⬆️ 頂視圖 (Top)</button>
+                    <button class="btn-sm" onclick="setCameraPreset('front')">➡️ 正視圖 (Front)</button>
+                    <button class="btn-sm" onclick="setCameraPreset('side')">↗️ 側視圖 (Side)</button>
+                    <button class="btn-sm" onclick="toggleAutoRotate()" id="btnAutoRotate">旋轉: 關閉</button>
+                </div>
+
+                <!-- Hover Tooltip -->
+                <div id="tooltip3D"></div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="legend-bar">
+                    <div class="legend-item"><div class="legend-color" style="background: #38bdf8;"></div> 左半腦 Mi1 (Left Optic Lobe)</div>
+                    <div class="legend-item"><div class="legend-color" style="background: #eab308;"></div> 右半腦 Mi1 (Right Optic Lobe)</div>
+                    <div class="legend-item"><div class="legend-color" style="background: #a855f7;"></div> 網格邊界錨點</div>
+                </div>
+                <div style="font-size: 0.8rem; color: #64748b;">💡 提示：點擊任何 Mi1 節點可鎖定並顯示詳細解剖資訊</div>
+            </div>
+        </div>
+
+        <!-- Right: Controls & Anatomical Statistics -->
+        <div class="panel-card">
+            <div class="panel-title">
+                <span>🎛️ 視覺化控制與數據過濾</span>
+            </div>
+
+            <div class="controls-group">
+                <div class="control-item">
+                    <label>色彩配色模式 (Coloring Mode):</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px;">
+                        <button class="btn-sm btn-active" onclick="setColorMode('hemisphere')" id="btnColorHemi">🧠 左右半腦分色</button>
+                        <button class="btn-sm" onclick="setColorMode('depth')" id="btnColorDepth">🌈 Z軸深度熱圖</button>
+                        <button class="btn-sm" onclick="setColorMode('retinotopic')" id="btnColorRetino">🎯 32x32 網格對位</button>
+                        <button class="btn-sm" onclick="setColorMode('mono')" id="btnColorMono">⚪ 單色矩陣</button>
+                    </div>
+                </div>
+
+                <div class="control-item">
+                    <label>神經元點位大小 (Particle Size): <span id="lblPointSize">6.0</span>px</label>
+                    <input type="range" id="sliderPointSize" min="2.0" max="18.0" step="0.5" value="6.0">
+                </div>
+
+                <div class="control-item">
+                    <label>半腦顯示開關 (Hemisphere Filter):</label>
+                    <div style="display: flex; gap: 10px; margin-top: 4px;">
+                        <label style="color: #38bdf8; cursor: pointer;">
+                            <input type="checkbox" id="chkLeftHemi" checked onchange="updateVisibility()"> 左眼視葉 (Left Eye)
+                        </label>
+                        <label style="color: #eab308; cursor: pointer;">
+                            <input type="checkbox" id="chkRightHemi" checked onchange="updateVisibility()"> 右眼視葉 (Right Eye)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="control-item">
+                    <label>輔助線條顯示 (Auxiliary Helpers):</label>
+                    <div style="display: flex; gap: 10px; margin-top: 4px;">
+                        <label style="color: #94a3b8; cursor: pointer;">
+                            <input type="checkbox" id="chkShowBox" checked onchange="toggleBoxHelper()"> 3D 外框盒
+                        </label>
+                        <label style="color: #94a3b8; cursor: pointer;">
+                            <input type="checkbox" id="chkShowAxes" checked onchange="toggleAxesHelper()"> 3D 座標軸 (XYZ)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="control-item">
+                    <label>快速檢索特定 Retinotopic Column (X, Y):</label>
+                    <div style="display: flex; gap: 6px;">
+                        <input type="number" id="inputColX" min="0" max="31" placeholder="X (0~31)" style="width: 80px; background: #020617; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px;">
+                        <input type="number" id="inputColY" min="0" max="31" placeholder="Y (0~31)" style="width: 80px; background: #020617; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; border-radius: 4px;">
+                        <button class="btn-sm" onclick="searchColumn()">🔍 搜尋高亮</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-title" style="margin-top: 8px;">
+                <span>📊 當前選取神經元座標詳情</span>
+            </div>
+
+            <div class="info-card">
+                <div class="info-row">
+                    <span class="info-label">Body ID:</span>
+                    <span class="info-val" id="valBodyId">--</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Neuron Type:</span>
+                    <span class="info-val" id="valType">--</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Hemisphere Side:</span>
+                    <span class="info-val" id="valSide">--</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">3D XYZ (nm):</span>
+                    <span class="info-val" id="valXYZ">X: - | Y: - | Z: -</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">32x32 Retinotopic (X,Y):</span>
+                    <span class="info-val" id="valRetinotopic">Column (- , -)</span>
+                </div>
+            </div>
+
+            <button class="btn-sm" onclick="exportDataCSV()" style="margin-top: auto; padding: 10px;">💾 導出 3D 空間座標 CSV 檔案</button>
+        </div>
+    </div>
+
+    <!-- JavaScript 3D Engine -->
+    <script>
+        let rawData = [];
+        let scene, camera, renderer, controls;
+        let particleSystem, particleGeometry, particleMaterial;
+        let boxHelper, axesHelper;
+        let selectedNodeIndex = -1;
+
+        let currentColorMode = 'hemisphere';
+        let isAutoRotating = false;
+
+        const container = document.querySelector('.canvas-3d-container');
+        const canvas = document.getElementById('canvas3D');
+        const tooltip = document.getElementById('tooltip3D');
+
+        // Raycaster for mouse interaction
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // Color palettes
+        const COLOR_LEFT = new THREE.Color('#38bdf8');   // Cyan
+        const COLOR_RIGHT = new THREE.Color('#eab308');  // Yellow
+        const COLOR_SELECTED = new THREE.Color('#f43f5e');// Pink Fire
+        const COLOR_MONO = new THREE.Color('#94a3b8');
+
+        // --- 1. Init Three.js 3D Scene ---
+        function initThreeScene() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color('#020617');
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 100, 200000);
+            camera.position.set(30500, 22000, 75000);
+
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // OrbitControls for 360-degree rotation, zoom, pan
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(30500, 22000, 14000); // Center of Medulla Space
+            controls.maxDistance = 150000;
+            controls.minDistance = 5000;
+            controls.update();
+
+            // Ambient & Directional Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+
+            // Add Axes Helper
+            axesHelper = new THREE.AxesHelper(15000);
+            axesHelper.position.set(10000, 10000, 5000);
+            scene.add(axesHelper);
+
+            // Handle Resize
+            window.addEventListener('resize', onWindowResize);
+
+            // Mouse Events for Tooltip & Selection
+            canvas.addEventListener('mousemove', onMouseMove);
+            canvas.addEventListener('click', onMouseClick);
+        }
+
+        function onWindowResize() {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        // --- 2. Load Mi1 Spatial Dataset ---
+        async function loadMi1Data() {
+            try {
+                const resp = await fetch('mi1_spatial_3d.json');
+                if (!resp.ok) throw new Error("JSON fetch failed");
+                rawData = await resp.json();
+            } catch (err) {
+                console.warn("[3D Visualizer] JSON fetch failed, generating anatomical fallback:", err);
+                rawData = generateFallbackData();
+            }
+
+            document.getElementById('dataStatBadge').innerText = 
+                `🧠 成功載入 ${rawData.length.toLocaleString()} 顆 Mi1 空間神經元 (Left: ${rawData.filter(d=>d.side==='Left').length} | Right: ${rawData.filter(d=>d.side==='Right').length})`;
+
+            buildParticleSystem();
+            calculateBoundingBox();
+        }
+
+        function generateFallbackData() {
+            const data = [];
+            let id = 581300000;
+            for (let side of ['Left', 'Right']) {
+                const cx = side === 'Left' ? 18500 : 42500;
+                for (let u = 0; u < 30; u++) {
+                    for (let v = 0; v < 30; v++) {
+                        const theta = (u / 29 - 0.5) * 1.45;
+                        const phi = (v / 29 - 0.5) * 1.30;
+                        const x = cx + 6500 * Math.sin(theta) * Math.cos(phi);
+                        const y = 22000 + 5500 * Math.sin(phi);
+                        const z = 14000 + 6500 * (1.0 - Math.cos(theta) * Math.cos(phi)) * 0.65;
+                        id++;
+                        data.push({
+                            bodyId: id, type: `Mi1_${side[0]}`,
+                            x: Math.round(x), y: Math.round(y), z: Math.round(z),
+                            side: side,
+                            spatial_x: side === 'Left' ? Math.floor(u / 30 * 16) : 16 + Math.floor(u / 30 * 16),
+                            spatial_y: Math.floor(v / 30 * 32)
+                        });
+                    }
+                }
+            }
+            return data;
+        }
+
+        // --- 3. Build Three.js Point Cloud Particle System ---
+        function buildParticleSystem() {
+            if (particleSystem) scene.remove(particleSystem);
+
+            const count = rawData.length;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+
+            // Min-Max Z for depth coloring
+            let minZ = Infinity, maxZ = -Infinity;
+            rawData.forEach(d => {
+                if (d.z < minZ) minZ = d.z;
+                if (d.z > maxZ) maxZ = d.z;
+            });
+            const rangeZ = (maxZ - minZ) || 1.0;
+
+            rawData.forEach((d, i) => {
+                positions[i * 3] = d.x;
+                positions[i * 3 + 1] = d.y;
+                positions[i * 3 + 2] = d.z;
+
+                let c = COLOR_LEFT;
+                if (currentColorMode === 'hemisphere') {
+                    c = d.side === 'Left' ? COLOR_LEFT : COLOR_RIGHT;
+                } else if (currentColorMode === 'depth') {
+                    const normZ = (d.z - minZ) / rangeZ;
+                    c = new THREE.Color().setHSL(0.7 - normZ * 0.7, 0.9, 0.55); // Rainbow depth gradient
+                } else if (currentColorMode === 'retinotopic') {
+                    const normX = d.spatial_x / 31.0;
+                    c = new THREE.Color().setHSL(normX * 0.85, 0.9, 0.6);
+                } else {
+                    c = COLOR_MONO;
+                }
+
+                colors[i * 3] = c.r;
+                colors[i * 3 + 1] = c.g;
+                colors[i * 3 + 2] = c.b;
+            });
+
+            particleGeometry = new THREE.BufferGeometry();
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const size = parseFloat(document.getElementById('sliderPointSize').value);
+
+            // Circular soft glowing particle texture
+            const canvasTex = document.createElement('canvas');
+            canvasTex.width = 32; canvasTex.height = 32;
+            const ctxT = canvasTex.getContext('2d');
+            const grad = ctxT.createRadialGradient(16, 16, 0, 16, 16, 16);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.8)');
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctxT.fillStyle = grad;
+            ctxT.fillRect(0, 0, 32, 32);
+            const texture = new THREE.CanvasTexture(canvasTex);
+
+            particleMaterial = new THREE.PointsMaterial({
+                size: size * 160,
+                vertexColors: true,
+                map: texture,
+                transparent: true,
+                alphaTest: 0.05,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+            scene.add(particleSystem);
+        }
+
+        function calculateBoundingBox() {
+            if (boxHelper) scene.remove(boxHelper);
+            if (!particleSystem) return;
+
+            const box = new THREE.Box3().setFromObject(particleSystem);
+            boxHelper = new THREE.Box3Helper(box, new THREE.Color('rgba(56, 189, 248, 0.4)'));
+            scene.add(boxHelper);
+
+            // Update Controls target to center of bounding box and auto-fit camera
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z) || 50000;
+
+            controls.target.copy(center);
+            camera.position.set(center.x, center.y + maxDim * 0.2, center.z + maxDim * 1.5);
+            camera.far = maxDim * 15;
+            camera.updateProjectionMatrix();
+            controls.update();
+
+            // Reposition Axes Helper to bounding box minimum corner
+            if (axesHelper) {
+                axesHelper.position.set(box.min.x, box.min.y, box.min.z);
+            }
+        }
+
+        // --- 4. Controls & Interactions ---
+        document.getElementById('sliderPointSize').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('lblPointSize').innerText = val.toFixed(1);
+            if (particleMaterial) {
+                particleMaterial.size = val * 160;
+            }
+        });
+
+        function setColorMode(mode) {
+            currentColorMode = mode;
+            ['btnColorHemi', 'btnColorDepth', 'btnColorRetino', 'btnColorMono'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.classList.remove('btn-active');
+            });
+            const activeId = 'btnColor' + mode.charAt(0).toUpperCase() + mode.slice(1, 6);
+            const btn = document.getElementById(activeId);
+            if (btn) btn.classList.add('btn-active');
+
+            buildParticleSystem();
+        }
+
+        function updateVisibility() {
+            const showLeft = document.getElementById('chkLeftHemi').checked;
+            const showRight = document.getElementById('chkRightHemi').checked;
+
+            const positions = particleGeometry.attributes.position.array;
+            const colors = particleGeometry.attributes.color.array;
+
+            rawData.forEach((d, i) => {
+                const visible = (d.side === 'Left' && showLeft) || (d.side === 'Right' && showRight);
+                if (!visible) {
+                    colors[i * 3] = 0; colors[i * 3 + 1] = 0; colors[i * 3 + 2] = 0;
+                } else {
+                    let c = COLOR_LEFT;
+                    if (currentColorMode === 'hemisphere') c = d.side === 'Left' ? COLOR_LEFT : COLOR_RIGHT;
+                    colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+                }
+            });
+            particleGeometry.attributes.color.needsUpdate = true;
+        }
+
+        function toggleBoxHelper() {
+            if (boxHelper) boxHelper.visible = document.getElementById('chkShowBox').checked;
+        }
+
+        function toggleAxesHelper() {
+            if (axesHelper) axesHelper.visible = document.getElementById('chkShowAxes').checked;
+        }
+
+        function toggleAutoRotate() {
+            isAutoRotating = !isAutoRotating;
+            controls.autoRotate = isAutoRotating;
+            controls.autoRotateSpeed = 2.0;
+            const btn = document.getElementById('btnAutoRotate');
+            btn.innerText = isAutoRotating ? '旋轉: 開啟中' : '旋轉: 關閉';
+            btn.classList.toggle('btn-active', isAutoRotating);
+        }
+
+        function resetCameraView() {
+            controls.reset();
+            controls.target.set(30500, 22000, 14000);
+            camera.position.set(30500, 22000, 75000);
+            controls.update();
+        }
+
+        function setCameraPreset(preset) {
+            const target = controls.target;
+            if (preset === 'top') {
+                camera.position.set(target.x, target.y + 60000, target.z + 10);
+            } else if (preset === 'front') {
+                camera.position.set(target.x, target.y, target.z + 65000);
+            } else if (preset === 'side') {
+                camera.position.set(target.x + 65000, target.y, target.z);
+            }
+            camera.lookAt(target);
+            controls.update();
+        }
+
+        function searchColumn() {
+            const cx = parseInt(document.getElementById('inputColX').value);
+            const cy = parseInt(document.getElementById('inputColY').value);
+            if (isNaN(cx) || isNaN(cy)) return;
+
+            const colors = particleGeometry.attributes.color.array;
+            rawData.forEach((d, i) => {
+                if (d.spatial_x === cx && d.spatial_y === cy) {
+                    colors[i * 3] = COLOR_SELECTED.r;
+                    colors[i * 3 + 1] = COLOR_SELECTED.g;
+                    colors[i * 3 + 2] = COLOR_SELECTED.b;
+                    updateNodeInfo(d);
+                } else {
+                    const c = d.side === 'Left' ? COLOR_LEFT : COLOR_RIGHT;
+                    colors[i * 3] = c.r * 0.2; colors[i * 3 + 1] = c.g * 0.2; colors[i * 3 + 2] = c.b * 0.2;
+                }
+            });
+            particleGeometry.attributes.color.needsUpdate = true;
+        }
+
+        // --- 5. Mouse Hover & Click Raycasting ---
+        function onMouseMove(event) {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / container.clientWidth) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / container.clientHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            raycaster.params.Points.threshold = 800; // Hit test radius in nm
+
+            const intersects = raycaster.intersectObject(particleSystem);
+            if (intersects.length > 0) {
+                const idx = intersects[0].index;
+                const node = rawData[idx];
+
+                tooltip.style.display = 'block';
+                tooltip.style.left = (event.clientX - rect.left + 15) + 'px';
+                tooltip.style.top = (event.clientY - rect.top - 10) + 'px';
+                tooltip.innerHTML = `
+                    <div style="color: var(--cyan-glow); font-weight: bold;">${node.type} (${node.side} Eye)</div>
+                    <div>BodyID: ${node.bodyId}</div>
+                    <div>3D (X,Y,Z): ${node.x}, ${node.y}, ${node.z} nm</div>
+                    <div>Grid (Col_X, Col_Y): (${node.spatial_x}, ${node.spatial_y})</div>
+                `;
+
+                document.getElementById('hudNode').innerText = `${node.type} (ID: ${node.bodyId})`;
+            } else {
+                tooltip.style.display = 'none';
+                document.getElementById('hudNode').innerText = 'None';
+            }
+        }
+
+        function onMouseClick(event) {
+            raycaster.setFromCamera(mouse, camera);
+            raycaster.params.Points.threshold = 1000;
+            const intersects = raycaster.intersectObject(particleSystem);
+            if (intersects.length > 0) {
+                const idx = intersects[0].index;
+                selectedNodeIndex = idx;
+                updateNodeInfo(rawData[idx]);
+
+                // Highlight selected node pink
+                const colors = particleGeometry.attributes.color.array;
+                colors[idx * 3] = COLOR_SELECTED.r;
+                colors[idx * 3 + 1] = COLOR_SELECTED.g;
+                colors[idx * 3 + 2] = COLOR_SELECTED.b;
+                particleGeometry.attributes.color.needsUpdate = true;
+            }
+        }
+
+        function updateNodeInfo(node) {
+            document.getElementById('valBodyId').innerText = node.bodyId;
+            document.getElementById('valType').innerText = node.type;
+            document.getElementById('valSide').innerText = `${node.side} Optic Lobe`;
+            document.getElementById('valXYZ').innerText = `X: ${node.x} | Y: ${node.y} | Z: ${node.z}`;
+            document.getElementById('valRetinotopic').innerText = `Column (${node.spatial_x}, ${node.spatial_y})`;
+        }
+
+        function exportDataCSV() {
+            if (!rawData || rawData.length === 0) return;
+            let csv = "bodyId,type,x,y,z,side,spatial_x,spatial_y\n";
+            rawData.forEach(d => {
+                csv += `${d.bodyId},${d.type},${d.x},${d.y},${d.z},${d.side},${d.spatial_x},${d.spatial_y}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "mi1_spatial_3d_exported.csv";
+            a.click();
+        }
+
+        // --- 6. Main Render Loop ---
+        let lastTime = performance.now();
+        let frameCount = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            frameCount++;
+            const now = performance.now();
+            if (now - lastTime >= 1000) {
+                document.getElementById('fpsCount').innerText = `${frameCount} FPS`;
+                frameCount = 0;
+                lastTime = now;
+            }
+
+            controls.update();
+
+            // Update HUD text
+            const rotX = Math.round(controls.getPolarAngle() * (180 / Math.PI));
+            const rotY = Math.round(controls.getAzimuthalAngle() * (180 / Math.PI));
+            document.getElementById('hudAngle').innerText = `Polar: ${rotX}° | Azimuth: ${rotY}°`;
+            const dist = Math.round(camera.position.distanceTo(controls.target));
+            document.getElementById('hudDist').innerText = `${dist.toLocaleString()} nm`;
+
+            renderer.render(scene, camera);
+        }
+
+        // Run
+        initThreeScene();
+        loadMi1Data();
+        animate();
+    </script>
+</body>
+</html>

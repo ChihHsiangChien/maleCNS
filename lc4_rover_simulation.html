@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="fly_rover.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="rover_brain.js"></script>
     <style>
         :root {
             --bg-dark: #030712;
@@ -207,10 +208,10 @@
 <body>
 
     <div class="header-section">
-        <div class="header-title">LC4 Autonomous Two-Wheel Rover Simulation</div>
-        <div class="header-subtitle">果蠅 LC4 視覺碰撞避障神經迴路 ➔ 後兩輪驅動自走車移植模擬</div>
-        <div class="badge-circuit">
-            Control Loop: Three.js 3D Camera (160x120) ➔ 32x32 Downsampler ➔ Split Eye (Left/Right) ➔ LC4 Looming ➔ Differential Motors (vL, vR)
+        <div class="header-title">MaleCNS Real Connectome LC4 Rover Simulation</div>
+        <div class="header-subtitle">果蠅真實 Janelia MaleCNS 神經突觸矩陣 (lc4_connectome_matrix.csv) 驅動之雙輪避障自走車模擬器</div>
+        <div class="badge-circuit" id="matrixStatusBadge">
+            🧠 載入神經突觸矩陣中... (lc4_connectome_matrix.csv)
         </div>
     </div>
 
@@ -231,6 +232,8 @@
                 <button class="btn-custom" onclick="addRandomObstacle()">➕ 新增隨機障礙物</button>
                 <button class="btn-custom" onclick="clearObstacles()">🧹 清空障礙物</button>
                 <button class="btn-custom" onclick="toggleRaycastLines()" id="btnRaycast">👁️ 隱藏 Raycast 光束</button>
+                <button class="btn-custom" onclick="togglePersistentTrail()" id="btnPersistentTrail">🛤️ 軌跡持續繪製: 關閉</button>
+                <button class="btn-custom" onclick="clearRoverTrail()">🧹 清除歷史軌跡</button>
                 <span style="font-size: 0.8rem; color: #64748b; margin-left: auto;">💡 提示：按住滑鼠左鍵可在迷宮中拖曳障礙物</span>
             </div>
 
@@ -359,6 +362,13 @@
             trail: []
         };
 
+        // Real MaleCNS Connectome Brain Engine (loads lc4_connectome_matrix.csv)
+        const connectomeBrain = (typeof RoverConnectomeBrain !== 'undefined') ? new RoverConnectomeBrain(16) : null;
+        const colLoomingLeft = new Float32Array(16);
+        const colLoomingRight = new Float32Array(16);
+        const leftEyeRays = new Float32Array(16);
+        const rightEyeRays = new Float32Array(16);
+
         // LC4 Neural Potentials
         let lc4_left = 0.0;
         let lc4_right = 0.0;
@@ -436,6 +446,20 @@
         function clearObstacles() {
             obstacles = [];
             sync3DObstacles();
+        }
+
+        let keepPersistentTrail = false;
+
+        function togglePersistentTrail() {
+            keepPersistentTrail = !keepPersistentTrail;
+            const btn = document.getElementById('btnPersistentTrail');
+            btn.innerText = keepPersistentTrail ? '🛤️ 軌跡持續繪製: 開啟中' : '🛤️ 軌跡持續繪製: 關閉';
+            btn.style.borderColor = keepPersistentTrail ? '#22c55e' : 'rgba(255, 255, 255, 0.15)';
+            btn.style.color = keepPersistentTrail ? '#22c55e' : '#e2e8f0';
+        }
+
+        function clearRoverTrail() {
+            rover.trail = [];
         }
 
         function toggleRaycastLines() {
@@ -624,33 +648,53 @@
 
         // --- 2. LC4 Left vs Right Connectome Engine ---
         function stepLC4Engine() {
-            let loomingLeft = 0;
-            let loomingRight = 0;
-
             if (useThreeJs) {
-                // Real Image Processing: Looming calculated directly from Three.js 3D camera 32x32 downsampled pixels!
-                loomingLeft = cameraLoomingLeft;
-                loomingRight = cameraLoomingRight;
+                for (let col = 0; col < 16; col++) {
+                    leftEyeRays[col] = colLoomingLeft[col];
+                    rightEyeRays[col] = colLoomingRight[col];
+                }
             } else {
-                // Raycast fallback calculation
-                for (let i = 0; i < NUM_RAYS; i++) {
-                    const currD = rayDistances[i];
-                    const prevD = rayPrevDistances[i];
-                    const proximityCurr = 300.0 / currD;
-                    const proximityPrev = 300.0 / prevD;
-                    const expansionRate = Math.max(0, proximityCurr - proximityPrev);
-                    if (i < 16) {
-                        loomingLeft += expansionRate * (currD < 120 ? 2.2 : 0.8);
-                    } else {
-                        loomingRight += expansionRate * (currD < 120 ? 2.2 : 0.8);
-                    }
+                // Raycast fallback calculation mapped across 16 Retinotopic Columns
+                for (let i = 0; i < 16; i++) {
+                    const currD_L = rayDistances[i];
+                    const prevD_L = rayPrevDistances[i];
+                    leftEyeRays[i] = Math.max(0, (300.0 / currD_L) - (300.0 / prevD_L)) * (currD_L < 120 ? 1.5 : 0.5);
+
+                    const currD_R = rayDistances[i + 16];
+                    const prevD_R = rayPrevDistances[i + 16];
+                    rightEyeRays[i] = Math.max(0, (300.0 / currD_R) - (300.0 / prevD_R)) * (currD_R < 120 ? 1.5 : 0.5);
                 }
             }
 
-            // Leaky Integrator State Update
-            const leak = 0.70;
-            lc4_left = (leak * lc4_left) + loomingLeft;
-            lc4_right = (leak * lc4_right) + loomingRight;
+            if (connectomeBrain && connectomeBrain.isLoaded) {
+                // Real MaleCNS Connectome Matrix Calculation (ACh Excitatory + GABA Inhibitory Synapses)
+                connectomeBrain.avoidanceGain = avoidGain;
+                connectomeBrain.leakFactor = 0.70;
+                connectomeBrain.update(leftEyeRays, rightEyeRays);
+
+                lc4_left = connectomeBrain.v_left_eye;
+                lc4_right = connectomeBrain.v_right_eye;
+
+                // Update UI matrix badge when loaded
+                const badge = document.getElementById('matrixStatusBadge');
+                if (badge && badge.dataset.updated !== 'true') {
+                    badge.innerHTML = `🧠 成功載入真實 Janelia MaleCNS Connectome 突觸矩陣 (${connectomeBrain.synapseCount.toLocaleString()} 條突觸 | ACh: ${connectomeBrain.achSynapses.toLocaleString()}, GABA: ${connectomeBrain.gabaSynapses.toLocaleString()})`;
+                    badge.style.background = 'rgba(34, 197, 94, 0.15)';
+                    badge.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+                    badge.style.color = '#22c55e';
+                    badge.dataset.updated = 'true';
+                }
+            } else {
+                // Fallback leaky integrator
+                let loomingLeft = 0, loomingRight = 0;
+                for (let i = 0; i < 16; i++) {
+                    loomingLeft += leftEyeRays[i] * 2.0;
+                    loomingRight += rightEyeRays[i] * 2.0;
+                }
+                const leak = 0.70;
+                lc4_left = (leak * lc4_left) + loomingLeft;
+                lc4_right = (leak * lc4_right) + loomingRight;
+            }
 
             // Record History
             historyL.push(lc4_left);
@@ -714,7 +758,9 @@
 
             // Record Trail
             rover.trail.push({ x: rover.x, y: rover.y });
-            if (rover.trail.length > 80) rover.trail.shift();
+            if (!keepPersistentTrail && rover.trail.length > 80) {
+                rover.trail.shift();
+            }
         }
 
         // --- Render 2D Arena ---
@@ -755,14 +801,16 @@
             });
 
             // Draw Rover Trail
-            ctxArena.strokeStyle = 'rgba(34, 197, 94, 0.4)';
-            ctxArena.lineWidth = 2;
-            ctxArena.beginPath();
-            rover.trail.forEach((pt, idx) => {
-                if (idx === 0) ctxArena.moveTo(pt.x, pt.y);
-                else ctxArena.lineTo(pt.x, pt.y);
-            });
-            ctxArena.stroke();
+            if (rover.trail.length > 1) {
+                ctxArena.strokeStyle = keepPersistentTrail ? 'rgba(34, 197, 94, 0.75)' : 'rgba(34, 197, 94, 0.4)';
+                ctxArena.lineWidth = keepPersistentTrail ? 2.5 : 2;
+                ctxArena.beginPath();
+                rover.trail.forEach((pt, idx) => {
+                    if (idx === 0) ctxArena.moveTo(pt.x, pt.y);
+                    else ctxArena.lineTo(pt.x, pt.y);
+                });
+                ctxArena.stroke();
+            }
 
             // Draw Raycast Vision Lines
             if (showRaycast) {
@@ -885,6 +933,8 @@
                 gridPrev.set(gridCurr);
                 cameraLoomingLeft = 0;
                 cameraLoomingRight = 0;
+                colLoomingLeft.fill(0);
+                colLoomingRight.fill(0);
 
                 ctxEsp32Grid.fillStyle = '#020617';
                 ctxEsp32Grid.fillRect(0, 0, canvasEsp32Grid.width, canvasEsp32Grid.height);
@@ -906,8 +956,10 @@
 
                         if (x < 16) {
                             cameraLoomingLeft += dI * 14.0;
+                            colLoomingLeft[x] += dI * 2.0;
                         } else {
                             cameraLoomingRight += dI * 14.0;
+                            colLoomingRight[x - 16] += dI * 2.0;
                         }
 
                         // Render Downsampled Cell on 32x32 Grid Canvas
