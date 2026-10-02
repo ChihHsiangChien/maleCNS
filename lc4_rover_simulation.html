@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LC4 Autonomous Two-Wheel Rover Simulation | 果蠅 LC4 雙輪自走車避障模擬器</title>
     <meta name="description" content="Drosophila LC4 Looming Neural Connectome transplanted to Rear Two-Wheel Differential Drive Autonomous Rover Simulation in HTML5/JS.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪰</text></svg>">
     <link rel="stylesheet" href="fly_rover.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -231,7 +232,7 @@
                 <button class="btn-custom" onclick="resetRoverPosition()">🔄 重置自走車位置</button>
                 <button class="btn-custom" onclick="addRandomObstacle()">➕ 新增隨機障礙物</button>
                 <button class="btn-custom" onclick="clearObstacles()">🧹 清空障礙物</button>
-                <button class="btn-custom" onclick="toggleRaycastLines()" id="btnRaycast">👁️ 隱藏 Raycast 光束</button>
+                <button class="btn-custom" onclick="toggleRaycastLines()" id="btnRaycast">👁️ 隱藏相機視野錐</button>
                 <button class="btn-custom" onclick="togglePersistentTrail()" id="btnPersistentTrail">🛤️ 軌跡持續繪製: 關閉</button>
                 <button class="btn-custom" onclick="clearRoverTrail()">🧹 清除歷史軌跡</button>
                 <span style="font-size: 0.8rem; color: #64748b; margin-left: auto;">💡 提示：按住滑鼠左鍵可在迷宮中拖曳障礙物</span>
@@ -336,9 +337,8 @@
         const canvasArena = document.getElementById('arenaCanvas');
         const ctxArena = canvasArena.getContext('2d');
         const canvasEsp32Raw = document.getElementById('esp32RawCanvas');
-        const ctxEsp32Raw = canvasEsp32Raw.getContext('2d');
         const canvasEsp32Grid = document.getElementById('esp32GridCanvas');
-        const ctxEsp32Grid = canvasEsp32Grid.getContext('2d');
+        const ctxEsp32Grid = canvasEsp32Grid.getContext('2d', { willReadFrequently: true });
         const canvasOsc = document.getElementById('oscCanvas');
         const ctxOsc = canvasOsc.getContext('2d');
 
@@ -464,7 +464,7 @@
 
         function toggleRaycastLines() {
             showRaycast = !showRaycast;
-            document.getElementById('btnRaycast').innerText = showRaycast ? '👁️ 隱藏 Raycast 光束' : '👁️ 顯示 Raycast 光束';
+            document.getElementById('btnRaycast').innerText = showRaycast ? '👁️ 隱藏相機視野錐' : '👁️ 顯示相機視野錐';
         }
 
         // --- 1. Three.js ESP32-CAM 3D Scene Pipeline & Image Processing ---
@@ -472,11 +472,19 @@
         let obstacleMeshesGroup;
         let useThreeJs = false;
 
+        // Separate offscreen canvas for Three.js WebGL rendering (avoids context conflict with display canvas)
+        const threeCanvas = document.createElement('canvas');
+        threeCanvas.width = 160;
+        threeCanvas.height = 120;
+
         // Offscreen canvas for 160x120 -> 32x32 Downsampling
         const offCanvas = document.createElement('canvas');
         offCanvas.width = 32;
         offCanvas.height = 32;
-        const offCtx = offCanvas.getContext('2d');
+        const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+
+        // 2D context for copying Three.js render to the visible ESP32 canvas
+        const ctxEsp32Raw2D = canvasEsp32Raw.getContext('2d', { willReadFrequently: true });
 
         // 32x32 Retinal Grid Memory
         const gridCurr = new Float32Array(32 * 32);
@@ -494,44 +502,49 @@
             }
         }
 
+        let hasAttemptedThreeJS = false;
+
         function initThreeJS() {
+            if (hasAttemptedThreeJS) return;
+            hasAttemptedThreeJS = true;
+
             if (typeof THREE === 'undefined') {
                 console.warn('Three.js library not loaded. Activating Software 3D Perspective Pipeline.');
                 useThreeJs = false;
                 return;
             }
-            if (!isWebGlSupported()) {
-                console.log('WebGL hardware context not supported in browser environment. Activating Software 3D Perspective Pipeline.');
-                useThreeJs = false;
-                return;
-            }
+
             try {
                 scene3D = new THREE.Scene();
-                scene3D.background = new THREE.Color(0x020617);
-                scene3D.fog = new THREE.FogExp2(0x020617, 0.0018);
+                scene3D.background = new THREE.Color(0x0a1628);
+                scene3D.fog = new THREE.FogExp2(0x0a1628, 0.0010);
 
                 camera3D = new THREE.PerspectiveCamera(70, 160 / 120, 1, 1000);
 
                 renderer3D = new THREE.WebGLRenderer({
-                    canvas: canvasEsp32Raw,
+                    canvas: threeCanvas,
                     antialias: true,
                     preserveDrawingBuffer: true
                 });
                 renderer3D.setSize(160, 120, false);
                 renderer3D.setPixelRatio(1);
 
-                // Lighting
-                const ambientLight = new THREE.AmbientLight(0x60a5fa, 0.9);
+                // Lighting — bright enough for camera to see the scene
+                const ambientLight = new THREE.AmbientLight(0xb0c4de, 1.8);
                 scene3D.add(ambientLight);
+
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+                dirLight.position.set(400, 200, 260);
+                scene3D.add(dirLight);
 
                 const headlight = new THREE.PointLight(0x38bdf8, 3.0, 450);
                 headlight.position.set(0, 15, 0);
                 camera3D.add(headlight);
                 scene3D.add(camera3D);
 
-                // Floor Plane
+                // Floor Plane — visible grey so camera can detect ground
                 const floorGeo = new THREE.PlaneGeometry(800, 520);
-                const floorMat = new THREE.MeshStandardMaterial({ color: 0x070d19, roughness: 0.8 });
+                const floorMat = new THREE.MeshStandardMaterial({ color: 0x1a2744, roughness: 0.7 });
                 const floor = new THREE.Mesh(floorGeo, floorMat);
                 floor.rotation.x = -Math.PI / 2;
                 floor.position.set(400, 0, 260);
@@ -542,8 +555,8 @@
                 gridHelper.position.set(400, 0.5, 260);
                 scene3D.add(gridHelper);
 
-                // Boundary Walls
-                const wallMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x0284c7, emissiveIntensity: 0.35 });
+                // Boundary Walls — bright blue glow for camera visibility
+                const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e3a5f, emissive: 0x38bdf8, emissiveIntensity: 0.7 });
                 const wallTB = new THREE.BoxGeometry(800, 40, 10);
                 const wallTop = new THREE.Mesh(wallTB, wallMat); wallTop.position.set(400, 20, 5); scene3D.add(wallTop);
                 const wallBot = new THREE.Mesh(wallTB, wallMat); wallBot.position.set(400, 20, 515); scene3D.add(wallBot);
@@ -555,9 +568,10 @@
                 // Obstacle Group
                 obstacleMeshesGroup = new THREE.Group();
                 scene3D.add(obstacleMeshesGroup);
+
+                useThreeJs = true;  // Must be set BEFORE sync3DObstacles (which checks this flag)
                 sync3DObstacles();
 
-                useThreeJs = true;
                 console.log('Three.js 3D ESP32-CAM Pipeline initialized successfully!');
             } catch (e) {
                 console.warn('Three.js WebGL Renderer init fallback:', e);
@@ -575,11 +589,11 @@
             obstacles.forEach(obs => {
                 const geo = new THREE.CylinderGeometry(obs.r, obs.r, 50, 24);
                 const mat = new THREE.MeshStandardMaterial({
-                    color: 0xf43f5e,
+                    color: 0xff4466,
                     roughness: 0.3,
                     metalness: 0.5,
-                    emissive: 0xe11d48,
-                    emissiveIntensity: 0.45
+                    emissive: 0xff2244,
+                    emissiveIntensity: 0.8
                 });
                 const mesh = new THREE.Mesh(geo, mat);
                 mesh.position.set(obs.x, 25, obs.y);
@@ -589,81 +603,23 @@
 
         // Initialize Three.js when script loads
         window.addEventListener('load', initThreeJS);
-        setTimeout(initThreeJS, 300);
 
-        // --- 1. Raycasting Camera Vision ($32 \times 32$ Split Eye) ---
+        // --- 1. Camera Visual Retinal Grid Memory & Parameters ---
         const NUM_RAYS = 32;
         const GRID_SIZE = 32;
         const FOV = Math.PI * 0.65; // 117 degrees field of view
-        let rayDistances = new Float32Array(NUM_RAYS);
-        let rayPrevDistances = new Float32Array(NUM_RAYS);
-
-        function updateRaycastingCamera() {
-            rayPrevDistances.set(rayDistances);
-
-            const startAngle = rover.angle - FOV / 2;
-            const angleStep = FOV / (NUM_RAYS - 1);
-
-            for (let i = 0; i < NUM_RAYS; i++) {
-                const rayAngle = startAngle + i * angleStep;
-                let minDist = 300.0; // Max visual range
-
-                // Cast ray against 4 outer walls
-                const cosA = Math.cos(rayAngle);
-                const sinA = Math.sin(rayAngle);
-
-                // Right wall
-                if (cosA > 0) minDist = Math.min(minDist, (canvasArena.width - 20 - rover.x) / cosA);
-                // Left wall
-                if (cosA < 0) minDist = Math.min(minDist, (20 - rover.x) / cosA);
-                // Bottom wall
-                if (sinA > 0) minDist = Math.min(minDist, (canvasArena.height - 20 - rover.y) / sinA);
-                // Top wall
-                if (sinA < 0) minDist = Math.min(minDist, (20 - rover.y) / sinA);
-
-                // Cast ray against circular obstacles
-                obstacles.forEach(obs => {
-                    const dx = obs.x - rover.x;
-                    const dy = obs.y - rover.y;
-                    const proj = dx * cosA + dy * sinA;
-                    if (proj > 0) {
-                        const perpDistSq = (dx * dx + dy * dy) - (proj * proj);
-                        if (perpDistSq < obs.r * obs.r) {
-                            const hitDist = proj - Math.sqrt(obs.r * obs.r - perpDistSq);
-                            if (hitDist > 0 && hitDist < minDist) {
-                                minDist = hitDist;
-                            }
-                        }
-                    }
-                });
-
-                rayDistances[i] = Math.max(10.0, minDist);
-            }
-        }
 
         // Corner Lock Recovery State Machine: 'NORMAL' | 'REVERSE' | 'PIVOT'
         let escapeState = 'NORMAL';
         let escapeTimer = 0;
         let escapePivotDir = 1;
 
-        // --- 2. LC4 Left vs Right Connectome Engine ---
+        // --- 2. LC4 Left vs Right Connectome Engine (Driven 100% by 32x32 Retinal Camera Feed) ---
         function stepLC4Engine() {
-            if (useThreeJs) {
-                for (let col = 0; col < 16; col++) {
-                    leftEyeRays[col] = colLoomingLeft[col];
-                    rightEyeRays[col] = colLoomingRight[col];
-                }
-            } else {
-                // Raycast fallback calculation mapped across 16 Retinotopic Columns
-                for (let i = 0; i < 16; i++) {
-                    const currD_L = rayDistances[i];
-                    const prevD_L = rayPrevDistances[i];
-                    leftEyeRays[i] = Math.max(0, (300.0 / currD_L) - (300.0 / prevD_L)) * (currD_L < 120 ? 1.5 : 0.5);
-
-                    const currD_R = rayDistances[i + 16];
-                    const prevD_R = rayPrevDistances[i + 16];
-                    rightEyeRays[i] = Math.max(0, (300.0 / currD_R) - (300.0 / prevD_R)) * (currD_R < 120 ? 1.5 : 0.5);
-                }
+            // Load 32x32 Camera Retinal Grid column Looming signals (16 Left Eye + 16 Right Eye Columns)
+            for (let col = 0; col < 16; col++) {
+                leftEyeRays[col] = colLoomingLeft[col];
+                rightEyeRays[col] = colLoomingRight[col];
             }
 
             if (connectomeBrain && connectomeBrain.isLoaded) {
@@ -678,7 +634,7 @@
                 // Update UI matrix badge when loaded
                 const badge = document.getElementById('matrixStatusBadge');
                 if (badge && badge.dataset.updated !== 'true') {
-                    badge.innerHTML = `🧠 成功載入真實 Janelia MaleCNS Connectome 突觸矩陣 (${connectomeBrain.synapseCount.toLocaleString()} 條突觸 | ACh: ${connectomeBrain.achSynapses.toLocaleString()}, GABA: ${connectomeBrain.gabaSynapses.toLocaleString()})`;
+                    badge.innerHTML = `🧠 成功載入真實 Janelia MaleCNS Connectome 突觸矩陣 (${connectomeBrain.synapseCount.toLocaleString()} 條突觸 | ACh: ${connectomeBrain.achSynapses.toLocaleString()}, GABA: ${connectomeBrain.gabaSynapses.toLocaleString()}) [模擬相機 32x32 視網膜光學驅動]`;
                     badge.style.background = 'rgba(34, 197, 94, 0.15)';
                     badge.style.borderColor = 'rgba(34, 197, 94, 0.4)';
                     badge.style.color = '#22c55e';
@@ -704,45 +660,37 @@
                 historyR.shift();
             }
 
-            // Check Minimum Proximity Distances
-            let minD_Left = 300, minD_Right = 300, minD_Front = 300;
-            for (let i = 0; i < 16; i++) minD_Left = Math.min(minD_Left, rayDistances[i]);
-            for (let i = 16; i < 32; i++) minD_Right = Math.min(minD_Right, rayDistances[i]);
-            for (let i = 12; i < 20; i++) minD_Front = Math.min(minD_Front, rayDistances[i]);
+            // Smooth Connectome Differential Steering (Always 前進巡航, 遇障順暢彎曲繞行)
+            const driveL = Math.max(0, lc4_left - 0.15) * avoidGain;
+            const driveR = Math.max(0, lc4_right - 0.15) * avoidGain;
 
-            // --- 3. CORNER LOCK RECOVERY STATE MACHINE ---
-            if (escapeState === 'NORMAL') {
-                // Trigger condition: Front jammed (<minSafeDist) OR dual LC4 spike (head-on corner trap)
-                if (minD_Front < minSafeDist || (lc4_left > spikeThreshold * 0.7 && lc4_right > spikeThreshold * 0.7)) {
+            // Contralateral excitation: obstacle on LEFT boosts RIGHT wheel (turn away from obstacle)
+            // Ipsilateral inhibition: obstacle on LEFT slows LEFT wheel
+            rover.speedL = baseSpeed + driveR * 1.8 - driveL * 1.2;
+            rover.speedR = baseSpeed + driveL * 1.8 - driveR * 1.2;
+
+            // Head-on collision escape: when both eyes fire similarly, break symmetry
+            const threatSum = driveL + driveR;
+            const threatDiff = Math.abs(driveL - driveR);
+            if (threatSum > 1.0 && threatDiff < threatSum * 0.3) {
+                // Bilateral symmetric looming → random escape turn (like fruit fly escape jump)
+                if (escapeState === 'NORMAL') {
+                    escapePivotDir = Math.random() > 0.5 ? 1 : -1;
                     escapeState = 'PIVOT';
-                    escapeTimer = 22; // ~0.35s zero-radius random pivot turn
-                    escapePivotDir = Math.random() < 0.5 ? 1 : -1; // Randomize spin direction (left/right)
+                    escapeTimer = 25;
                 }
             }
 
             if (escapeState === 'PIVOT') {
+                rover.speedL = baseSpeed * (escapePivotDir > 0 ? 1.8 : 0.2);
+                rover.speedR = baseSpeed * (escapePivotDir > 0 ? 0.2 : 1.8);
                 escapeTimer--;
-                // Zero-radius differential spin: One wheel forward, one wheel reverse (random direction)
-                rover.speedL = baseSpeed * 1.8 * escapePivotDir;
-                rover.speedR = -baseSpeed * 1.8 * escapePivotDir;
-                if (escapeTimer <= 0) {
-                    escapeState = 'NORMAL'; // Immediately transition forward after turn!
-                }
-            } else {
-                // NORMAL Differential Steering
-                const driveL = Math.max(0, lc4_left - 1.5) * avoidGain;
-                const driveR = Math.max(0, lc4_right - 1.5) * avoidGain;
-
-                rover.speedL = baseSpeed + driveR * 1.2 - driveL * 1.4;
-                rover.speedR = baseSpeed + driveL * 1.2 - driveR * 1.4;
-
-                if (minD_Left < 30) rover.speedL = -baseSpeed * 1.0;
-                if (minD_Right < 30) rover.speedR = -baseSpeed * 1.0;
+                if (escapeTimer <= 0) escapeState = 'NORMAL';
             }
 
-            // Clamp wheel speeds
-            rover.speedL = Math.max(-baseSpeed * 1.8, Math.min(baseSpeed * 2.2, rover.speedL));
-            rover.speedR = Math.max(-baseSpeed * 1.8, Math.min(baseSpeed * 2.2, rover.speedR));
+            // Ensure positive forward progression (Prevents in-place spinning!)
+            rover.speedL = Math.max(baseSpeed * 0.2, Math.min(baseSpeed * 2.8, rover.speedL));
+            rover.speedR = Math.max(baseSpeed * 0.2, Math.min(baseSpeed * 2.8, rover.speedR));
 
             // Differential Kinematics
             const v = (rover.speedL + rover.speedR) / 2.0;
@@ -812,29 +760,33 @@
                 ctxArena.stroke();
             }
 
-            // Draw Raycast Vision Lines
+            // Draw 3D Camera Vision FOV Frustum Cone
             if (showRaycast) {
-                const startAngle = rover.angle - FOV / 2;
-                const angleStep = FOV / (NUM_RAYS - 1);
-                for (let i = 0; i < NUM_RAYS; i++) {
-                    const rayAngle = startAngle + i * angleStep;
-                    const dist = rayDistances[i];
-                    const hitX = rover.x + Math.cos(rayAngle) * dist;
-                    const hitY = rover.y + Math.sin(rayAngle) * dist;
+                const fovHalf = FOV / 2;
+                const leftAngle = rover.angle - fovHalf;
+                const rightAngle = rover.angle + fovHalf;
+                const viewDist = 200;
 
-                    ctxArena.strokeStyle = (i < 16) ? 'rgba(56, 189, 248, 0.25)' : 'rgba(234, 179, 8, 0.25)';
-                    ctxArena.lineWidth = 1;
-                    ctxArena.beginPath();
-                    ctxArena.moveTo(rover.x, rover.y);
-                    ctxArena.lineTo(hitX, hitY);
-                    ctxArena.stroke();
+                const lx = rover.x + Math.cos(leftAngle) * viewDist;
+                const ly = rover.y + Math.sin(leftAngle) * viewDist;
+                const rx = rover.x + Math.cos(rightAngle) * viewDist;
+                const ry = rover.y + Math.sin(rightAngle) * viewDist;
 
-                    // Hit dot
-                    ctxArena.fillStyle = dist < 120 ? '#f43f5e' : (i < 16 ? '#38bdf8' : '#eab308');
-                    ctxArena.beginPath();
-                    ctxArena.arc(hitX, hitY, 2.5, 0, Math.PI * 2);
-                    ctxArena.fill();
-                }
+                const grad = ctxArena.createRadialGradient(rover.x, rover.y, 10, rover.x, rover.y, viewDist);
+                grad.addColorStop(0, 'rgba(56, 189, 248, 0.22)');
+                grad.addColorStop(1, 'rgba(56, 189, 248, 0.02)');
+
+                ctxArena.fillStyle = grad;
+                ctxArena.beginPath();
+                ctxArena.moveTo(rover.x, rover.y);
+                ctxArena.lineTo(lx, ly);
+                ctxArena.arc(rover.x, rover.y, viewDist, leftAngle, rightAngle);
+                ctxArena.closePath();
+                ctxArena.fill();
+
+                ctxArena.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+                ctxArena.lineWidth = 1.5;
+                ctxArena.stroke();
             }
 
             // Draw Two-Wheel Rover Body
@@ -914,6 +866,79 @@
             }
         }
 
+        function processRetinalPixels(pixels) {
+            gridPrev.set(gridCurr);
+            colLoomingLeft.fill(0);
+            colLoomingRight.fill(0);
+            cameraLoomingLeft = 0;
+            cameraLoomingRight = 0;
+
+            const cellSize = canvasEsp32Grid.width / GRID_SIZE;
+            ctxEsp32Grid.fillStyle = '#020617';
+            ctxEsp32Grid.fillRect(0, 0, canvasEsp32Grid.width, canvasEsp32Grid.height);
+
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    const idx = y * 32 + x;
+                    const px = idx * 4;
+                    const r = pixels[px];
+                    const g = pixels[px + 1];
+                    const b = pixels[px + 2];
+                    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+                    gridCurr[idx] = lum;
+
+                    // Absolute temporal pixel change |dI| + Obstacle/Wall visual contrast
+                    const diff = Math.abs(lum - gridPrev[idx]);
+                    // Lower threshold to catch dimmer obstacles; stronger contrast weighting
+                    const isObstacleOrWall = (lum > 0.04);
+                    const contrast = isObstacleOrWall ? Math.pow(lum, 0.7) * 2.5 : 0.0;
+                    const loomingVal = diff * 20.0 + contrast * 1.8;
+
+                    if (x < 16) {
+                        cameraLoomingLeft += loomingVal;
+                        colLoomingLeft[x] += loomingVal * 0.65;
+                    } else {
+                        cameraLoomingRight += loomingVal;
+                        colLoomingRight[x - 16] += loomingVal * 0.65;
+                    }
+
+                    // Render Downsampled Cell on 32x32 Grid Canvas
+                    if (loomingVal > 0.20) {
+                        ctxEsp32Grid.fillStyle = '#f43f5e'; // Active looming expansion cell
+                    } else if (lum > 0.05) {
+                        ctxEsp32Grid.fillStyle = x < 16 ? `rgba(56, 189, 248, ${lum * 0.9})` : `rgba(234, 179, 8, ${lum * 0.9})`;
+                    } else {
+                        ctxEsp32Grid.fillStyle = '#090d16';
+                    }
+                    ctxEsp32Grid.fillRect(x * cellSize, y * cellSize, cellSize - 0.5, cellSize - 0.5);
+                }
+            }
+
+            // Normalize per-column looming to 0.0~1.0 range (matching original raycasting 0~1 input range)
+            // Each column accumulates loomingVal*0.65 over up to 32 rows; typical max per column ≈ 30-50
+            // Use fixed divisor to preserve Left/Right differential ratio
+            const NORM_FACTOR = 25.0;
+            for (let col = 0; col < 16; col++) {
+                colLoomingLeft[col] = Math.min(1.0, colLoomingLeft[col] / NORM_FACTOR);
+                colLoomingRight[col] = Math.min(1.0, colLoomingRight[col] / NORM_FACTOR);
+            }
+
+            // Overlay Split Eye Line & Label
+            ctxEsp32Grid.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctxEsp32Grid.setLineDash([2, 2]);
+            ctxEsp32Grid.beginPath();
+            ctxEsp32Grid.moveTo(canvasEsp32Grid.width / 2, 0);
+            ctxEsp32Grid.lineTo(canvasEsp32Grid.width / 2, canvasEsp32Grid.height);
+            ctxEsp32Grid.stroke();
+            ctxEsp32Grid.setLineDash([]);
+
+            ctxEsp32Grid.fillStyle = '#38bdf8';
+            ctxEsp32Grid.font = '10px JetBrains Mono';
+            ctxEsp32Grid.fillText('L', 4, 14);
+            ctxEsp32Grid.fillStyle = '#eab308';
+            ctxEsp32Grid.fillText('R', canvasEsp32Grid.width - 12, 14);
+        }
+
         // --- Render ESP32-CAM Video Viewport & 32x32 Downsampling Grid Pipeline ---
         function renderEsp32CamPipeline() {
             if (useThreeJs && renderer3D) {
@@ -923,75 +948,24 @@
                 const targetZ = rover.y + Math.sin(rover.angle) * 150;
                 camera3D.lookAt(targetX, 16, targetZ);
 
-                // Render Three.js 3D Scene into canvasEsp32Raw (160x120)
+                // Render Three.js 3D Scene into offscreen threeCanvas (160x120)
                 renderer3D.render(scene3D, camera3D);
 
+                // Copy rendered frame to visible ESP32 display canvas
+                ctxEsp32Raw2D.drawImage(threeCanvas, 0, 0, 160, 120);
+
                 // 2. Downsample 160x120 WebGL Canvas to 32x32 Image Pixel Matrix
-                offCtx.drawImage(canvasEsp32Raw, 0, 0, 32, 32);
+                offCtx.drawImage(threeCanvas, 0, 0, 32, 32);
                 const pixels = offCtx.getImageData(0, 0, 32, 32).data;
 
-                gridPrev.set(gridCurr);
-                cameraLoomingLeft = 0;
-                cameraLoomingRight = 0;
-                colLoomingLeft.fill(0);
-                colLoomingRight.fill(0);
-
-                ctxEsp32Grid.fillStyle = '#020617';
-                ctxEsp32Grid.fillRect(0, 0, canvasEsp32Grid.width, canvasEsp32Grid.height);
-
-                const cellSize = canvasEsp32Grid.width / GRID_SIZE;
-
-                for (let y = 0; y < GRID_SIZE; y++) {
-                    for (let x = 0; x < GRID_SIZE; x++) {
-                        const idx = y * 32 + x;
-                        const px = idx * 4;
-                        const r = pixels[px];
-                        const g = pixels[px + 1];
-                        const b = pixels[px + 2];
-                        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
-                        gridCurr[idx] = lum;
-
-                        // Temporal pixel darkening rate dI/dt (shadow expansion rate)
-                        const dI = Math.max(0, gridPrev[idx] - lum);
-
-                        if (x < 16) {
-                            cameraLoomingLeft += dI * 14.0;
-                            colLoomingLeft[x] += dI * 2.0;
-                        } else {
-                            cameraLoomingRight += dI * 14.0;
-                            colLoomingRight[x - 16] += dI * 2.0;
-                        }
-
-                        // Render Downsampled Cell on 32x32 Grid Canvas
-                        if (dI > 0.08) {
-                            ctxEsp32Grid.fillStyle = '#f43f5e'; // Active looming expansion cell
-                        } else if (lum > 0.05) {
-                            ctxEsp32Grid.fillStyle = x < 16 ? `rgba(56, 189, 248, ${lum * 0.9})` : `rgba(234, 179, 8, ${lum * 0.9})`;
-                        } else {
-                            ctxEsp32Grid.fillStyle = '#090d16';
-                        }
-                        ctxEsp32Grid.fillRect(x * cellSize, y * cellSize, cellSize - 0.5, cellSize - 0.5);
-                    }
-                }
-
-                // Overlay Split Eye Line & Label
-                ctxEsp32Grid.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-                ctxEsp32Grid.setLineDash([2, 2]);
-                ctxEsp32Grid.beginPath();
-                ctxEsp32Grid.moveTo(canvasEsp32Grid.width / 2, 0);
-                ctxEsp32Grid.lineTo(canvasEsp32Grid.width / 2, canvasEsp32Grid.height);
-                ctxEsp32Grid.stroke();
-                ctxEsp32Grid.setLineDash([]);
-
-                ctxEsp32Grid.fillStyle = '#38bdf8';
-                ctxEsp32Grid.font = '10px JetBrains Mono';
-                ctxEsp32Grid.fillText('L', 4, 14);
-                ctxEsp32Grid.fillStyle = '#eab308';
-                ctxEsp32Grid.fillText('R', canvasEsp32Grid.width - 12, 14);
+                processRetinalPixels(pixels);
 
             } else {
+                // Software 3D fallback uses the pre-acquired 2D context
+                const ctxEsp32Raw = ctxEsp32Raw2D;
+                if (!ctxEsp32Raw) return;
                 // Software 3D Perspective Camera Engine: Renders Floor Grid, 4 Boundary Walls & Obstacles
-                ctxEsp32Raw.fillStyle = '#020617';
+                ctxEsp32Raw.fillStyle = '#0a1628';
                 ctxEsp32Raw.fillRect(0, 0, canvasEsp32Raw.width, canvasEsp32Raw.height);
 
                 const w = canvasEsp32Raw.width;
@@ -1002,33 +976,31 @@
                 const sinA = Math.sin(rover.angle);
 
                 // 1. Render 3D Ground Floor Grid with Rover Motion Shifting
-                ctxEsp32Raw.fillStyle = '#070d19';
+                ctxEsp32Raw.fillStyle = '#1a2744';
                 ctxEsp32Raw.fillRect(0, horizonY, w, h - horizonY);
 
                 const groundOffset = (rover.x * cosA + rover.y * sinA) % 35;
-                ctxEsp32Raw.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+                ctxEsp32Raw.strokeStyle = 'rgba(56, 189, 248, 0.40)';
                 ctxEsp32Raw.lineWidth = 1;
+                ctxEsp32Raw.beginPath();
 
                 // Horizontal perspective ground grid lines
                 for (let z = 15; z <= 300; z += 35) {
                     const effZ = ((z + groundOffset) % 280) + 12;
                     const yLine = horizonY + (35 / effZ) * 110;
                     if (yLine >= horizonY && yLine <= h) {
-                        ctxEsp32Raw.beginPath();
                         ctxEsp32Raw.moveTo(0, yLine);
                         ctxEsp32Raw.lineTo(w, yLine);
-                        ctxEsp32Raw.stroke();
                     }
                 }
 
                 // Vertical perspective ground grid lines converging to horizon
                 const angleOffset = Math.sin(rover.angle) * 70;
                 for (let x = -300; x <= w + 300; x += 30) {
-                    ctxEsp32Raw.beginPath();
                     ctxEsp32Raw.moveTo(w / 2 + angleOffset * 0.2, horizonY);
                     ctxEsp32Raw.lineTo(x + angleOffset, h);
-                    ctxEsp32Raw.stroke();
                 }
+                ctxEsp32Raw.stroke();
 
                 // 2. Render 4 Arena Boundary Wall Surfaces (Top, Right, Bottom, Left)
                 const wallSegments = [
@@ -1057,9 +1029,12 @@
                         const sy2_top = horizonY - (25 / cz2) * 110;
                         const sy2_bot = horizonY + (15 / cz2) * 110;
 
-                        ctxEsp32Raw.fillStyle = 'rgba(15, 23, 42, 0.9)';
-                        ctxEsp32Raw.strokeStyle = '#0284c7';
-                        ctxEsp32Raw.lineWidth = 1.5;
+                        // Brighter wall fill so retinal grid detects boundaries
+                        const wallCloseness = Math.min(1.0, 40.0 / Math.min(cz1, cz2));
+                        const wallBright = Math.round(30 + wallCloseness * 80);
+                        ctxEsp32Raw.fillStyle = `rgb(${Math.round(wallBright*0.3)}, ${Math.round(wallBright*0.5)}, ${wallBright})`;
+                        ctxEsp32Raw.strokeStyle = `rgb(${Math.round(wallBright*0.4)}, ${Math.round(wallBright*0.7)}, ${Math.min(255, wallBright+60)})`;
+                        ctxEsp32Raw.lineWidth = 2;
 
                         ctxEsp32Raw.beginPath();
                         ctxEsp32Raw.moveTo(sx1, sy1_top);
@@ -1098,16 +1073,19 @@
                     const x = item.screenX - item.screenW / 2;
                     const y = horizonY + (h - horizonY) * 0.2 - item.screenH / 2;
 
+                    // High-contrast bright obstacle rendering for retinal grid detection
+                    const closeness = Math.min(1.0, 60.0 / item.camZ);
+                    const bright = Math.round(150 + closeness * 105);
                     const grad = ctxEsp32Raw.createLinearGradient(x, y, x + item.screenW, y);
-                    grad.addColorStop(0, 'rgba(244, 63, 94, 0.95)');
-                    grad.addColorStop(0.5, '#f43f5e');
-                    grad.addColorStop(1, 'rgba(159, 18, 57, 0.95)');
+                    grad.addColorStop(0, `rgb(${bright}, ${Math.round(bright*0.3)}, ${Math.round(bright*0.35)})`);
+                    grad.addColorStop(0.5, `rgb(${bright}, ${Math.round(bright*0.25)}, ${Math.round(bright*0.30)})`);
+                    grad.addColorStop(1, `rgb(${Math.round(bright*0.7)}, ${Math.round(bright*0.12)}, ${Math.round(bright*0.2)})`);
 
                     ctxEsp32Raw.fillStyle = grad;
                     ctxEsp32Raw.fillRect(x, y, item.screenW, item.screenH);
 
-                    ctxEsp32Raw.strokeStyle = '#fda4af';
-                    ctxEsp32Raw.lineWidth = 1;
+                    ctxEsp32Raw.strokeStyle = `rgb(${Math.min(255, bright+40)}, ${Math.round(bright*0.5)}, ${Math.round(bright*0.55)})`;
+                    ctxEsp32Raw.lineWidth = 1.5;
                     ctxEsp32Raw.strokeRect(x, y, item.screenW, item.screenH);
                 });
 
@@ -1120,58 +1098,7 @@
                 offCtx.drawImage(canvasEsp32Raw, 0, 0, 32, 32);
                 const pixels = offCtx.getImageData(0, 0, 32, 32).data;
 
-                gridPrev.set(gridCurr);
-                cameraLoomingLeft = 0;
-                cameraLoomingRight = 0;
-
-                ctxEsp32Grid.fillStyle = '#020617';
-                ctxEsp32Grid.fillRect(0, 0, canvasEsp32Grid.width, canvasEsp32Grid.height);
-
-                const cellSize = canvasEsp32Grid.width / GRID_SIZE;
-
-                for (let y = 0; y < GRID_SIZE; y++) {
-                    for (let x = 0; x < GRID_SIZE; x++) {
-                        const idx = y * 32 + x;
-                        const px = idx * 4;
-                        const r = pixels[px];
-                        const g = pixels[px + 1];
-                        const b = pixels[px + 2];
-                        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
-                        gridCurr[idx] = lum;
-
-                        const dI = Math.max(0, gridPrev[idx] - lum);
-
-                        if (x < 16) {
-                            cameraLoomingLeft += dI * 14.0;
-                        } else {
-                            cameraLoomingRight += dI * 14.0;
-                        }
-
-                        if (dI > 0.08) {
-                            ctxEsp32Grid.fillStyle = '#f43f5e';
-                        } else if (lum > 0.05) {
-                            ctxEsp32Grid.fillStyle = x < 16 ? `rgba(56, 189, 248, ${lum * 0.9})` : `rgba(234, 179, 8, ${lum * 0.9})`;
-                        } else {
-                            ctxEsp32Grid.fillStyle = '#090d16';
-                        }
-                        ctxEsp32Grid.fillRect(x * cellSize, y * cellSize, cellSize - 0.5, cellSize - 0.5);
-                    }
-                }
-
-                // Overlay Split Eye Line
-                ctxEsp32Grid.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-                ctxEsp32Grid.setLineDash([2, 2]);
-                ctxEsp32Grid.beginPath();
-                ctxEsp32Grid.moveTo(canvasEsp32Grid.width / 2, 0);
-                ctxEsp32Grid.lineTo(canvasEsp32Grid.width / 2, canvasEsp32Grid.height);
-                ctxEsp32Grid.stroke();
-                ctxEsp32Grid.setLineDash([]);
-
-                ctxEsp32Grid.fillStyle = '#38bdf8';
-                ctxEsp32Grid.font = '10px JetBrains Mono';
-                ctxEsp32Grid.fillText('L', 4, 14);
-                ctxEsp32Grid.fillStyle = '#eab308';
-                ctxEsp32Grid.fillText('R', canvasEsp32Grid.width - 12, 14);
+                processRetinalPixels(pixels);
             }
         }
 
@@ -1257,11 +1184,10 @@
                 lastTime = now;
             }
 
-            updateRaycastingCamera();
-            stepLC4Engine();
-            renderArena();
-            renderEsp32CamPipeline();
-            renderOscilloscope();
+            renderEsp32CamPipeline(); // 1. Render 3D camera feed & downsample to 32x32 Retinal Grid
+            stepLC4Engine();          // 2. Feed 32x32 Retinal Grid into MaleCNS LC4 Connectome Matrix
+            renderArena();            // 3. Render 2D Arena & Camera FOV Frustum
+            renderOscilloscope();     // 4. Render Oscilloscope
 
             requestAnimationFrame(animate);
         }

@@ -366,9 +366,10 @@ class RoverConnectomeBrain {
             this.isForaging = false;
         }
 
-        this.v_pitch_drive = THREE.MathUtils.lerp(this.v_pitch_drive, Math.max(-1.5, Math.min(1.5, targetPitch)), 0.3);
-        this.v_wing_left = THREE.MathUtils.lerp(this.v_wing_left, Math.max(0.2, Math.min(3.2, targetWingLeft)), 0.25);
-        this.v_wing_right = THREE.MathUtils.lerp(this.v_wing_right, Math.max(0.2, Math.min(3.2, targetWingRight)), 0.25);
+        const _lerp = (a, b, t) => a + (b - a) * t;
+        this.v_pitch_drive = _lerp(this.v_pitch_drive, Math.max(-1.5, Math.min(1.5, targetPitch)), 0.3);
+        this.v_wing_left = _lerp(this.v_wing_left, Math.max(0.2, Math.min(3.2, targetWingLeft)), 0.25);
+        this.v_wing_right = _lerp(this.v_wing_right, Math.max(0.2, Math.min(3.2, targetWingRight)), 0.25);
 
         return {
             wingPowerLeft: this.v_wing_left,
